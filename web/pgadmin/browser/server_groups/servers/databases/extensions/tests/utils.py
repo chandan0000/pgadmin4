@@ -15,12 +15,7 @@ from regression.python_test_utils.test_utils import get_db_connection
 
 
 def get_extension_data(schema_name):
-    data = {
-        "name": "cube",
-        "relocatable": "true",
-        "schema": schema_name
-    }
-    return data
+    return {"name": "cube", "relocatable": "true", "schema": schema_name}
 
 
 def create_extension(server, db_name, extension_name, schema_name):
@@ -55,10 +50,7 @@ def create_extension(server, db_name, extension_name, schema_name):
         # Get 'oid' from newly created extension
         pg_cursor.execute("SELECT oid FROM pg_catalog.pg_extension "
                           "WHERE extname = '%s'" % extension_name)
-        oid = pg_cursor.fetchone()
-        extension_id = ''
-        if oid:
-            extension_id = oid[0]
+        extension_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return extension_id
     except Exception:
@@ -118,8 +110,7 @@ def drop_extension(server, db_name, extension_name):
             "SELECT * FROM pg_catalog.pg_extension WHERE extname='%s'"
             % extension_name)
         if pg_cursor.fetchall():
-            pg_cursor.execute(
-                "DROP EXTENSION %s CASCADE" % extension_name)
+            pg_cursor.execute(f"DROP EXTENSION {extension_name} CASCADE")
             connection.commit()
         connection.close()
     except Exception:

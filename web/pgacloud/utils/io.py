@@ -16,8 +16,7 @@ def debug(message):
     """ Print a debug message """
     now = datetime.datetime.now()
 
-    print('[{}]: {}'.format(now.strftime("%H:%M:%S"), message),
-          file=sys.stderr)
+    print(f'[{now.strftime("%H:%M:%S")}]: {message}', file=sys.stderr)
 
 
 def error(message):

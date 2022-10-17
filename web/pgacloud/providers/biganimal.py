@@ -81,15 +81,11 @@ class BigAnimalProvider(AbsProvider):
         """ Create a biganimal cluster """
 
         try:
-            private_network = True if args.private_network == '1' else False
-            ip = args.public_ip if args.public_ip else '0.0.0.0/0'
-            ip_ranges = []
-
+            private_network = args.private_network == '1'
+            ip = args.public_ip or '0.0.0.0/0'
             ip = ip.split(',')
-            for i in ip:
-                ip_ranges.append([i, 'pgcloud client {}'.format(i)])
-
-            debug('Creating BigAnimal cluster: {}...'.format(args.name))
+            ip_ranges = [[i, f'pgcloud client {i}'] for i in ip]
+            debug(f'Creating BigAnimal cluster: {args.name}...')
 
             _url = "{0}/{1}".format(self.BASE_URL, 'clusters')
             _headers = {"content-type": "application/json",
@@ -162,7 +158,7 @@ class BigAnimalProvider(AbsProvider):
                 self._cluster_info = cluster_info[0]
 
                 if self._cluster_info['instance'] != 0 and\
-                    self._cluster_info['phase'] not in [
+                        self._cluster_info['phase'] not in [
                     'Cluster creation request received',
                     'Setting up primary',
                     'Creating CNP cluster'
@@ -171,8 +167,7 @@ class BigAnimalProvider(AbsProvider):
 
                 if status != self._cluster_info['phase']:
                     status = self._cluster_info['phase']
-                    debug('BigAnimal cluster status: {}...'.format(
-                        status))
+                    debug(f'BigAnimal cluster status: {status}...')
             else:
                 running = False
                 error(str(cluster_resp.text))

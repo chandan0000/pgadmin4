@@ -47,7 +47,7 @@ class FtsTemplateAddTestCase(BaseTestGenerator):
                                                  self.server_id,
                                                  self.db_id)
 
-        if not db_con["info"] == "Database connected.":
+        if db_con["info"] != "Database connected.":
             raise Exception("Could not connect to database.")
 
         schema_response = schema_utils.verify_schemas(self.server,
@@ -56,9 +56,9 @@ class FtsTemplateAddTestCase(BaseTestGenerator):
         if not schema_response:
             raise Exception("Could not find the schema.")
 
-        self.fts_template_name = "fts_temp_%s" % str(uuid.uuid4())[1:8]
+        self.fts_template_name = f"fts_temp_{str(uuid.uuid4())[1:8]}"
         self.data = \
-            {
+                {
                 "name": self.fts_template_name,
                 "schema": self.schema_id,
                 "tmplinit": "dispell_init",

@@ -16,25 +16,20 @@ import json
 from regression.python_test_utils.test_utils import get_db_connection
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-with open(CURRENT_PATH + "/user_mapping_test_data.json") as data_file:
+with open(f"{CURRENT_PATH}/user_mapping_test_data.json") as data_file:
     test_cases = json.load(data_file)
 
 
 def get_um_data(db_user, server):
 
-    data = {"name": db_user,
-            "um_options": [],
-            "umoptions": [
-                {
-                    "umoption": "user",
-                    "umvalue": server["username"]
-                },
-                {
-                    "umoption": "password",
-                    "umvalue": server["db_password"]
-                }
-            ]}
-    return data
+    return {
+        "name": db_user,
+        "um_options": [],
+        "umoptions": [
+            {"umoption": "user", "umvalue": server["username"]},
+            {"umoption": "password", "umvalue": server["db_password"]},
+        ],
+    }
 
 
 def create_user_mapping(server, db_name, fsrv_name):
@@ -73,10 +68,7 @@ def create_user_mapping(server, db_name, fsrv_name):
         pg_cursor.execute(
             "select umid from pg_catalog.pg_user_mappings where "
             "srvname = '%s' order by umid asc limit 1" % fsrv_name)
-        oid = pg_cursor.fetchone()
-        um_id = ''
-        if oid:
-            um_id = oid[0]
+        um_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return um_id
     except Exception:

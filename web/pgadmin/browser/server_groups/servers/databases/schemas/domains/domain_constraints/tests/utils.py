@@ -15,7 +15,7 @@ import json
 from regression.python_test_utils import test_utils as utils
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-with open(CURRENT_PATH + "/domain_constraints_test_data.json") as data_file:
+with open(f"{CURRENT_PATH}/domain_constraints_test_data.json") as data_file:
     test_cases = json.load(data_file)
 
 
@@ -46,13 +46,11 @@ def create_domain_constraints(server, db_name, schema_name,
         pg_cursor = connection.cursor()
 
         if domain_sql is None:
-            query = 'ALTER DOMAIN ' + schema_name + '.' + domain_name + \
-                    ' ADD CONSTRAINT ' + domain_constraint_name + \
-                    ' CHECK (VALUE > 0)'
+            query = f'ALTER DOMAIN {schema_name}.{domain_name} ADD CONSTRAINT {domain_constraint_name} CHECK (VALUE > 0)'
+
 
         else:
-            query = 'ALTER DOMAIN ' + schema_name + '.' +\
-                    domain_name + ' ' + domain_sql
+            query = f'ALTER DOMAIN {schema_name}.{domain_name} {domain_sql}'
 
         pg_cursor.execute(query)
         connection.commit()
@@ -60,10 +58,7 @@ def create_domain_constraints(server, db_name, schema_name,
         pg_cursor.execute("SELECT oid FROM pg_catalog.pg_constraint WHERE"
                           " conname='%s'" %
                           domain_constraint_name)
-        oid = pg_cursor.fetchone()
-        domain_con_id = ''
-        if oid:
-            domain_con_id = oid[0]
+        domain_con_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return domain_con_id
     except Exception:
@@ -123,11 +118,10 @@ def create_domain(server, db_name, schema_name,
         pg_cursor = connection.cursor()
 
         if domain_sql is None:
-            query = 'CREATE DOMAIN ' + schema_name + '.' + domain_name + \
-                    ' AS numeric(500,4) DEFAULT 1000'
+            query = f'CREATE DOMAIN {schema_name}.{domain_name} AS numeric(500,4) DEFAULT 1000'
+
         else:
-            query = 'CREATE DOMAIN ' + schema_name + '.' +\
-                    domain_name + ' ' + domain_sql
+            query = f'CREATE DOMAIN {schema_name}.{domain_name} {domain_sql}'
 
         pg_cursor.execute(query)
         connection.commit()
@@ -196,13 +190,11 @@ def create_domain_constraints_invalid(server, db_name, schema_name,
         pg_cursor = connection.cursor()
 
         if domain_sql is None:
-            query = 'ALTER DOMAIN ' + schema_name + '.' + domain_name + \
-                    ' ADD CONSTRAINT ' + domain_constraint_name + \
-                    ' CHECK (VALUE > 0) NOT VALID'
+            query = f'ALTER DOMAIN {schema_name}.{domain_name} ADD CONSTRAINT {domain_constraint_name} CHECK (VALUE > 0) NOT VALID'
+
 
         else:
-            query = 'ALTER DOMAIN ' + schema_name + '.' + \
-                    domain_name + ' ' + domain_sql
+            query = f'ALTER DOMAIN {schema_name}.{domain_name} {domain_sql}'
 
         pg_cursor.execute(query)
         connection.commit()
@@ -210,10 +202,7 @@ def create_domain_constraints_invalid(server, db_name, schema_name,
         pg_cursor.execute("SELECT oid FROM pg_catalog.pg_constraint WHERE"
                           " conname='%s'" %
                           domain_constraint_name)
-        oid = pg_cursor.fetchone()
-        domain_con_id = ''
-        if oid:
-            domain_con_id = oid[0]
+        domain_con_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return domain_con_id
     except Exception:

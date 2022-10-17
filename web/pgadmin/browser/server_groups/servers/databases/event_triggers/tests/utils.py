@@ -17,7 +17,7 @@ from regression.python_test_utils.test_utils import get_db_connection
 from regression.python_test_utils import test_utils as utils
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-with open(CURRENT_PATH + "/event_triggers_test_data.json") as data_file:
+with open(f"{CURRENT_PATH}/event_triggers_test_data.json") as data_file:
     test_cases = json.load(data_file)
 
 
@@ -57,10 +57,7 @@ def create_event_trigger(server, db_name, schema_name, func_name,
         pg_cursor.execute(
             "SELECT oid FROM pg_catalog.pg_event_trigger WHERE evtname = '%s'"
             % trigger_name)
-        oid = pg_cursor.fetchone()
-        trigger_id = ''
-        if oid:
-            trigger_id = oid[0]
+        trigger_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return trigger_id
     except Exception:

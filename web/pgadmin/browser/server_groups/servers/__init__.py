@@ -47,11 +47,7 @@ def has_any(data, keys):
     if keys is None and not isinstance(keys, list):
         return False
 
-    for key in keys:
-        if key in data:
-            return True
-
-    return False
+    return any(key in data for key in keys)
 
 
 def recovery_state(connection, postgres_version):
@@ -177,9 +173,9 @@ class ServerModule(sg.ServerGroupPluginModule):
         servers = []
         for server in all_servers:
             if server.discovery_id and \
-                not server.shared and \
-                config.SERVER_MODE and \
-                len(SharedServer.query.filter_by(
+                    not server.shared and \
+                    config.SERVER_MODE and \
+                    len(SharedServer.query.filter_by(
                     user_id=current_user.id,
                     name=server.name).all()) > 0 and not hide_shared_server:
                 continue
@@ -252,8 +248,7 @@ class ServerModule(sg.ServerGroupPluginModule):
                 host=server.host,
                 port=server.port,
                 is_password_saved=bool(server.save_password),
-                is_tunnel_password_saved=True
-                if server.tunnel_password is not None else False,
+                is_tunnel_password_saved=server.tunnel_password is not None,
                 was_connected=was_connected,
                 errmsg=errmsg,
                 user_id=server.user_id,
@@ -261,7 +256,7 @@ class ServerModule(sg.ServerGroupPluginModule):
                 shared=server.shared,
                 is_kerberos_conn=bool(server.kerberos_conn),
                 gss_authenticated=manager.gss_authenticated,
-                cloud_status=server.cloud_status
+                cloud_status=server.cloud_status,
             )
 
     @property
@@ -357,9 +352,9 @@ class ServerModule(sg.ServerGroupPluginModule):
                 sslkey=None,
                 sslrootcert=None,
                 sslcrl=None,
-                bgcolor=data.bgcolor if data.bgcolor else None,
-                fgcolor=data.fgcolor if data.fgcolor else None,
-                service=data.service if data.service else None,
+                bgcolor=data.bgcolor or None,
+                fgcolor=data.fgcolor or None,
+                service=data.service or None,
                 connect_timeout=0,
                 use_ssh_tunnel=data.use_ssh_tunnel,
                 tunnel_host=data.tunnel_host,
@@ -367,8 +362,9 @@ class ServerModule(sg.ServerGroupPluginModule):
                 tunnel_username=None,
                 tunnel_authentication=0,
                 tunnel_identity_file=None,
-                shared=True
+                shared=True,
             )
+
             db.session.add(shared_server)
             db.session.commit()
         except Exception as e:
@@ -471,7 +467,7 @@ class ServerNode(PGChildNodeView):
                 if field in data:
                     continue
                 elif config.SERVER_MODE and \
-                        field in required_ssl_fields_server_mode:
+                            field in required_ssl_fields_server_mode:
                     # In Server mode,
                     # we will set dummy SSL certificate file path which will
                     # prevent using default SSL certificates from web servers
@@ -480,11 +476,11 @@ class ServerNode(PGChildNodeView):
                     import os
                     file_extn = '.key' if field.endswith('key') else '.crt'
                     dummy_ssl_file = os.path.join(
-                        '<STORAGE_DIR>', '.postgresql',
-                        'postgresql' + file_extn
+                        '<STORAGE_DIR>', '.postgresql', f'postgresql{file_extn}'
                     )
+
                     data[field] = dummy_ssl_file
-                    # For Desktop mode, we will allow to default
+                                # For Desktop mode, we will allow to default
                 else:
                     data[field] = None
 
@@ -508,7 +504,7 @@ class ServerNode(PGChildNodeView):
             if server.shared and server.user_id != current_user.id:
                 shared_server = ServerModule.get_shared_server(server, gid)
                 server = \
-                    ServerModule.get_shared_server_properties(server,
+                        ServerModule.get_shared_server_properties(server,
                                                               shared_server)
             manager = driver.connection_manager(server.id)
             conn = manager.connection()
@@ -520,7 +516,7 @@ class ServerNode(PGChildNodeView):
             if connected:
                 server_type = manager.server_type
                 status, result, in_recovery, wal_paused =\
-                    recovery_state(conn, manager.version)
+                        recovery_state(conn, manager.version)
                 if not status:
                     connected = False
                     manager.release()
@@ -543,22 +539,25 @@ class ServerNode(PGChildNodeView):
                     in_recovery=in_recovery,
                     wal_pause=wal_paused,
                     is_password_saved=bool(server.save_password),
-                    is_tunnel_password_saved=True
-                    if server.tunnel_password is not None else False,
+                    is_tunnel_password_saved=server.tunnel_password is not None,
                     errmsg=errmsg,
                     user_name=server.username,
                     shared=server.shared,
                     is_kerberos_conn=bool(server.kerberos_conn),
-                    gss_authenticated=manager.gss_authenticated
+                    gss_authenticated=manager.gss_authenticated,
                 )
             )
 
-        if not len(res):
-            return gone(errormsg=gettext(
-                'The specified server group with id# {0} could not be found.'
-            ))
 
-        return make_json_response(result=res)
+        return (
+            make_json_response(result=res)
+            if len(res)
+            else gone(
+                errormsg=gettext(
+                    'The specified server group with id# {0} could not be found.'
+                )
+            )
+        )
 
     @login_required
     def node(self, gid, sid):
@@ -589,7 +588,7 @@ class ServerNode(PGChildNodeView):
         wal_paused = None
         if connected:
             status, result, in_recovery, wal_paused =\
-                recovery_state(conn, manager.version)
+                    recovery_state(conn, manager.version)
             if not status:
                 connected = False
                 manager.release()
@@ -612,14 +611,13 @@ class ServerNode(PGChildNodeView):
                 wal_pause=wal_paused,
                 host=server.host,
                 is_password_saved=bool(server.save_password),
-                is_tunnel_password_saved=True
-                if server.tunnel_password is not None else False,
+                is_tunnel_password_saved=server.tunnel_password is not None,
                 errmsg=errmsg,
                 shared=server.shared,
                 user_name=server.username,
                 is_kerberos_conn=bool(server.kerberos_conn),
-                gss_authenticated=manager.gss_authenticated
-            ),
+                gss_authenticated=manager.gss_authenticated,
+            )
         )
 
     def delete_shared_server(self, server_name, gid, osid):
@@ -649,7 +647,6 @@ class ServerNode(PGChildNodeView):
         servers = Server.query.filter_by(user_id=current_user.id, id=sid)
         server_name = None
 
-        # TODO:: A server, which is connected, cannot be deleted
         if servers is None:
             return make_json_response(
                 status=410,
@@ -660,21 +657,20 @@ class ServerNode(PGChildNodeView):
                     'server?'
                 )
             )
-        else:
-            try:
-                for s in servers:
-                    server_name = s.name
-                    get_driver(PG_DEFAULT_DRIVER).delete_manager(s.id)
-                    db.session.delete(s)
-                db.session.commit()
-                self.delete_shared_server(server_name, gid, sid)
-                QueryHistory.clear_history(current_user.id, sid)
+        try:
+            for s in servers:
+                server_name = s.name
+                get_driver(PG_DEFAULT_DRIVER).delete_manager(s.id)
+                db.session.delete(s)
+            db.session.commit()
+            self.delete_shared_server(server_name, gid, sid)
+            QueryHistory.clear_history(current_user.id, sid)
 
-            except Exception as e:
-                current_app.logger.exception(e)
-                return make_json_response(
-                    success=0,
-                    errormsg=e.message)
+        except Exception as e:
+            current_app.logger.exception(e)
+            return make_json_response(
+                success=0,
+                errormsg=e.message)
 
         return make_json_response(success=1,
                                   info=gettext("Server deleted"))
@@ -693,7 +689,7 @@ class ServerNode(PGChildNodeView):
             )
 
         if config.SERVER_MODE and server.shared and \
-                server.user_id != current_user.id:
+                    server.user_id != current_user.id:
             sharedserver = ServerModule.get_shared_server(server, gid)
 
         # Not all parameters can be modified, while the server is connected
@@ -743,9 +739,8 @@ class ServerNode(PGChildNodeView):
         }
 
         idx = 0
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         if 'db_res' in data:
             data['db_res'] = ','.join(data['db_res'])
 
@@ -875,7 +870,7 @@ class ServerNode(PGChildNodeView):
             if server.shared and server.user_id != current_user.id:
                 shared_server = ServerModule.get_shared_server(server, gid)
                 server = \
-                    ServerModule.get_shared_server_properties(server,
+                        ServerModule.get_shared_server_properties(server,
                                                               shared_server)
             manager = driver.connection_manager(server.id)
             conn = manager.connection()
@@ -936,7 +931,7 @@ class ServerNode(PGChildNodeView):
                                                                shared_server)
             server_owner = server.server_owner
 
-        is_ssl = True if server.ssl_mode in self.SSL_MODES else False
+        is_ssl = server.ssl_mode in self.SSL_MODES
 
         if is_ssl:
             sslcert = server.sslcert
@@ -979,33 +974,28 @@ class ServerNode(PGChildNodeView):
             'bgcolor': server.bgcolor,
             'fgcolor': server.fgcolor,
             'db_res': server.db_res.split(',') if server.db_res else None,
-            'passfile': server.passfile if server.passfile else None,
-            'passexec_cmd':
-                server.passexec_cmd if server.passexec_cmd else None,
-            'passexec_expiration':
-                server.passexec_expiration if server.passexec_expiration
-                else None,
+            'passfile': server.passfile or None,
+            'passexec_cmd': server.passexec_cmd or None,
+            'passexec_expiration': server.passexec_expiration or None,
             'sslcert': sslcert,
             'sslkey': sslkey,
             'sslrootcert': sslrootcert,
             'sslcrl': sslcrl,
-            'sslcompression': True if is_ssl and server.sslcompression
-            else False,
-            'service': server.service if server.service else None,
-            'connect_timeout':
-                server.connect_timeout if server.connect_timeout else 0,
+            'sslcompression': bool(is_ssl and server.sslcompression),
+            'service': server.service or None,
+            'connect_timeout': server.connect_timeout or 0,
             'use_ssh_tunnel': use_ssh_tunnel,
             'tunnel_host': tunnel_host,
             'tunnel_port': tunnel_port,
             'tunnel_username': tunnel_username,
-            'tunnel_identity_file': server.tunnel_identity_file
-            if server.tunnel_identity_file else None,
+            'tunnel_identity_file': server.tunnel_identity_file or None,
             'tunnel_authentication': tunnel_authentication,
             'kerberos_conn': bool(server.kerberos_conn),
             'gss_authenticated': manager.gss_authenticated,
             'gss_encrypted': manager.gss_encrypted,
-            'cloud_status': server.cloud_status
+            'cloud_status': server.cloud_status,
         }
+
 
         return ajax_response(response)
 
@@ -1018,9 +1008,8 @@ class ServerNode(PGChildNodeView):
             'sslmode',
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         # Loop through data and if found any value is blank string then
         # convert it to None as after porting into React, from frontend
@@ -1134,7 +1123,7 @@ class ServerNode(PGChildNodeView):
                     have_tunnel_password = True
                     tunnel_password = data['tunnel_password']
                     tunnel_password = \
-                        encrypt(tunnel_password, crypt_key)
+                            encrypt(tunnel_password, crypt_key)
 
                 status, errmsg = conn.connect(
                     password=password,
@@ -1154,14 +1143,14 @@ class ServerNode(PGChildNodeView):
                     )
                 else:
                     if 'save_password' in data and data['save_password'] and \
-                            have_password and config.ALLOW_SAVE_PASSWORD:
+                                have_password and config.ALLOW_SAVE_PASSWORD:
                         setattr(server, 'password', password)
                         db.session.commit()
 
                     if 'save_tunnel_password' in data and \
-                        data['save_tunnel_password'] and \
-                        have_tunnel_password and \
-                            config.ALLOW_SAVE_TUNNEL_PASSWORD:
+                            data['save_tunnel_password'] and \
+                            have_tunnel_password and \
+                                config.ALLOW_SAVE_TUNNEL_PASSWORD:
                         setattr(server, 'tunnel_password', tunnel_password)
                         db.session.commit()
 
@@ -1223,10 +1212,11 @@ class ServerNode(PGChildNodeView):
                 )
             )
 
-            if not status:
-                return internal_server_error(errormsg=res)
-
-            return make_json_response(data=res)
+            return (
+                make_json_response(data=res)
+                if status
+                else internal_server_error(errormsg=res)
+            )
 
         return make_json_response(
             info=gettext(
@@ -1267,7 +1257,7 @@ class ServerNode(PGChildNodeView):
         errmsg = None
         if connected:
             status, result, in_recovery, wal_paused =\
-                recovery_state(conn, manager.version)
+                    recovery_state(conn, manager.version)
 
             if not status:
                 connected = False

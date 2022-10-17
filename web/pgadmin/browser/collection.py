@@ -34,12 +34,7 @@ class CollectionNodeModule(PgAdminModule, PGChildModule, metaclass=ABCMeta):
         kwargs.setdefault("url_prefix", self.node_path)
         kwargs.setdefault("static_url_path", '/static')
 
-        PgAdminModule.__init__(
-            self,
-            "NODE-%s" % self.node_type,
-            import_name,
-            **kwargs
-        )
+        PgAdminModule.__init__(self, f"NODE-{self.node_type}", import_name, **kwargs)
         PGChildModule.__init__(self)
 
     @property
@@ -61,17 +56,16 @@ class CollectionNodeModule(PgAdminModule, PGChildModule, metaclass=ABCMeta):
             self, node_id, parent_id, label, icon, **kwargs
     ):
         obj = {
-            "id": "%s_%s" % (self.node_type, node_id),
+            "id": f"{self.node_type}_{node_id}",
             "label": label,
-            "icon": self.node_icon if not icon else icon,
-            "inode": self.node_inode
-            if 'inode' not in kwargs
-            else kwargs['inode'],
+            "icon": icon or self.node_icon,
+            "inode": self.node_inode if 'inode' not in kwargs else kwargs['inode'],
             "_type": self.node_type,
             "_id": node_id,
             "_pid": parent_id,
-            "module": PGADMIN_NODE % self.node_type
+            "module": PGADMIN_NODE % self.node_type,
         }
+
         for key in kwargs:
             obj.setdefault(key, kwargs[key])
         return obj
@@ -82,12 +76,13 @@ class CollectionNodeModule(PgAdminModule, PGChildModule, metaclass=ABCMeta):
             "label": self.collection_label,
             "icon": self.collection_icon,
             "inode": True,
-            "_type": 'coll-%s' % (self.node_type),
+            "_type": f'coll-{self.node_type}',
             "_id": parent_id,
             "_pid": parent_id,
             "module": PGADMIN_NODE % self.node_type,
-            "nodes": [self.node_type]
+            "nodes": [self.node_type],
         }
+
 
         for key in kwargs:
             obj.setdefault(key, kwargs[key])
@@ -96,7 +91,7 @@ class CollectionNodeModule(PgAdminModule, PGChildModule, metaclass=ABCMeta):
 
     @property
     def node_type(self):
-        return '%s' % (self._NODE_TYPE)
+        return f'{self._NODE_TYPE}'
 
     @property
     def csssnippets(self):
@@ -137,14 +132,14 @@ class CollectionNodeModule(PgAdminModule, PGChildModule, metaclass=ABCMeta):
         """
         icon to be displayed for the browser collection node
         """
-        return 'icon-coll-%s' % (self.node_type)
+        return f'icon-coll-{self.node_type}'
 
     @property
     def node_icon(self):
         """
         icon to be displayed for the browser nodes
         """
-        return 'icon-%s' % (self.node_type)
+        return f'icon-{self.node_type}'
 
     @property
     def node_inode(self):
@@ -233,9 +228,12 @@ class CollectionNodeModule(PgAdminModule, PGChildModule, metaclass=ABCMeta):
             'show_system_objects'
         )
         self.pref_show_user_defined_templates = \
-            self.browser_preference.preference('show_user_defined_templates')
+                self.browser_preference.preference('show_user_defined_templates')
         self.pref_show_node = self.browser_preference.register(
-            'node', 'show_node_' + self.node_type,
-            self.collection_label, 'node', self.SHOW_ON_BROWSER,
-            category_label=gettext('Nodes')
+            'node',
+            f'show_node_{self.node_type}',
+            self.collection_label,
+            'node',
+            self.SHOW_ON_BROWSER,
+            category_label=gettext('Nodes'),
         )

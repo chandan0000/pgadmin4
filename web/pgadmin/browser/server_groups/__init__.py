@@ -70,10 +70,7 @@ class ServerGroupModule(BrowserPluginModule):
         :return: True if servergroup contains shared server else false
         """
         servers = Server.query.filter_by(servergroup_id=gid)
-        for s in servers:
-            if s.shared:
-                return True
-        return False
+        return any(s.shared for s in servers)
 
     def get_nodes(self, *arg, **kwargs):
         """Return a JSON document listing the server groups for the user"""
@@ -87,13 +84,14 @@ class ServerGroupModule(BrowserPluginModule):
 
         for idx, group in enumerate(groups):
             yield self.generate_browser_node(
-                "%d" % (group.id), None,
+                "%d" % (group.id),
+                None,
                 group.name,
                 get_icon_css_class(group.id, group.user_id),
                 True,
                 self.node_type,
-                can_delete=True if idx > 0 else False,
-                user_id=group.user_id
+                can_delete=idx > 0,
+                user_id=group.user_id,
             )
 
     @property
@@ -161,15 +159,13 @@ class ServerGroupView(NodeView):
 
     @login_required
     def list(self):
-        res = []
-
-        for sg in ServerGroup.query.filter_by(
+        res = [
+            {'id': sg.id, 'name': sg.name}
+            for sg in ServerGroup.query.filter_by(
                 user_id=current_user.id
-        ).order_by('name'):
-            res.append({
-                'id': sg.id,
-                'name': sg.name
-            })
+            ).order_by('name')
+        ]
+
 
         return ajax_response(response=res, status=200)
 
@@ -184,9 +180,9 @@ class ServerGroupView(NodeView):
         # if server group id is 1 we won't delete it.
         sg = groups.first()
 
-        shared_servers = Server.query.filter_by(servergroup_id=gid,
-                                                shared=True).all()
-        if shared_servers:
+        if shared_servers := Server.query.filter_by(
+            servergroup_id=gid, shared=True
+        ).all():
             return make_json_response(
                 status=417,
                 success=0,
@@ -213,15 +209,14 @@ class ServerGroupView(NodeView):
                 success=0,
                 errormsg=gettext(SG_NOT_FOUND_ERROR)
             )
-        else:
-            try:
-                db.session.delete(sg)
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                return make_json_response(
-                    status=410, success=0, errormsg=e.message
-                )
+        try:
+            db.session.delete(sg)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return make_json_response(
+                status=410, success=0, errormsg=e.message
+            )
 
         return make_json_response(result=request.form)
 
@@ -234,9 +229,8 @@ class ServerGroupView(NodeView):
             user_id=current_user.id,
             id=gid).first()
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         if servergroup is None:
             return make_json_response(
@@ -244,21 +238,20 @@ class ServerGroupView(NodeView):
                 success=0,
                 errormsg=gettext(SG_NOT_FOUND_ERROR)
             )
-        else:
-            try:
-                if 'name' in data:
-                    servergroup.name = data['name']
-                db.session.commit()
-            except exc.IntegrityError:
-                db.session.rollback()
-                return bad_request(gettext(
-                    "The specified server group already exists."
-                ))
-            except Exception as e:
-                db.session.rollback()
-                return make_json_response(
-                    status=410, success=0, errormsg=e.message
-                )
+        try:
+            if 'name' in data:
+                servergroup.name = data['name']
+            db.session.commit()
+        except exc.IntegrityError:
+            db.session.rollback()
+            return bad_request(gettext(
+                "The specified server group already exists."
+            ))
+        except Exception as e:
+            db.session.rollback()
+            return make_json_response(
+                status=410, success=0, errormsg=e.message
+            )
 
         return jsonify(
             node=self.blueprint.generate_browser_node(
@@ -293,50 +286,47 @@ class ServerGroupView(NodeView):
     @login_required
     def create(self):
         """Creates new server-group """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
-        if data['name'] != '':
-            try:
-                sg = ServerGroup(
-                    user_id=current_user.id,
-                    name=data['name'])
-                db.session.add(sg)
-                db.session.commit()
+        data = request.form or json.loads(request.data, encoding='utf-8')
 
-                data['id'] = sg.id
-                data['name'] = sg.name
-
-                return jsonify(
-                    node=self.blueprint.generate_browser_node(
-                        "%d" % sg.id,
-                        None,
-                        sg.name,
-                        get_icon_css_class(sg.id, sg.user_id),
-                        True,
-                        self.node_type,
-                        # This is user created hence can deleted
-                        can_delete=True
-                    )
-                )
-            except exc.IntegrityError:
-                db.session.rollback()
-                return bad_request(gettext(
-                    "The specified server group already exists."
-                ))
-
-            except Exception as e:
-                db.session.rollback()
-                return make_json_response(
-                    status=410,
-                    success=0,
-                    errormsg=e.message)
-
-        else:
+        if data['name'] == '':
             return make_json_response(
                 status=417,
                 success=0,
                 errormsg=gettext('No server group name was specified'))
+        try:
+            sg = ServerGroup(
+                user_id=current_user.id,
+                name=data['name'])
+            db.session.add(sg)
+            db.session.commit()
+
+            data['id'] = sg.id
+            data['name'] = sg.name
+
+            return jsonify(
+                node=self.blueprint.generate_browser_node(
+                    "%d" % sg.id,
+                    None,
+                    sg.name,
+                    get_icon_css_class(sg.id, sg.user_id),
+                    True,
+                    self.node_type,
+                    # This is user created hence can deleted
+                    can_delete=True
+                )
+            )
+        except exc.IntegrityError:
+            db.session.rollback()
+            return bad_request(gettext(
+                "The specified server group already exists."
+            ))
+
+        except Exception as e:
+            db.session.rollback()
+            return make_json_response(
+                status=410,
+                success=0,
+                errormsg=e.message)
 
     @login_required
     def sql(self, gid):
@@ -388,37 +378,36 @@ class ServerGroupView(NodeView):
         """Return a JSON document listing the server groups for the user"""
         nodes = []
         if gid is None:
-            if config.SERVER_MODE:
+            groups = (
+                self.get_all_server_groups()
+                if config.SERVER_MODE
+                else ServerGroup.query.filter_by(user_id=current_user.id)
+            )
 
-                groups = self.get_all_server_groups()
-            else:
-                groups = ServerGroup.query.filter_by(user_id=current_user.id)
-
-            for group in groups:
-                nodes.append(
-                    self.blueprint.generate_browser_node(
-                        "%d" % group.id,
-                        None,
-                        group.name,
-                        get_icon_css_class(group.id, group.user_id),
-                        True,
-                        self.node_type
-                    )
+            nodes.extend(
+                self.blueprint.generate_browser_node(
+                    "%d" % group.id,
+                    None,
+                    group.name,
+                    get_icon_css_class(group.id, group.user_id),
+                    True,
+                    self.node_type,
                 )
-        else:
-            group = ServerGroup.query.filter(ServerGroup.id == gid).first()
+                for group in groups
+            )
 
-            if not group:
-                return gone(
-                    errormsg=gettext("Could not find the server group.")
-                )
-
+        elif group := ServerGroup.query.filter(ServerGroup.id == gid).first():
             nodes = self.blueprint.generate_browser_node(
                 "%d" % (group.id), None,
                 group.name,
                 get_icon_css_class(group.id, group.user_id),
                 True,
                 self.node_type
+            )
+
+        else:
+            return gone(
+                errormsg=gettext("Could not find the server group.")
             )
 
         return make_json_response(data=nodes)

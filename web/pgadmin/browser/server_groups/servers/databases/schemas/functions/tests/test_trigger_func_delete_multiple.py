@@ -30,12 +30,12 @@ class TriggerFuncDeleteMultipleTestCase(BaseTestGenerator):
         super(TriggerFuncDeleteMultipleTestCase, self).setUp()
         self = funcs_utils.set_up(self)
 
-        func_name = "test_event_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name = f"test_event_delete_{str(uuid.uuid4())[1:8]}"
         function_info = funcs_utils.create_trigger_function(
             self.server, self.db_name, self.schema_name, func_name,
             self.server_version)
 
-        func_name_1 = "test_event_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name_1 = f"test_event_delete_{str(uuid.uuid4())[1:8]}"
         function_info_1 = funcs_utils.create_trigger_function(
             self.server, self.db_name, self.schema_name, func_name_1,
             self.server_version)

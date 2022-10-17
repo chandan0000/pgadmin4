@@ -264,9 +264,13 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         if key in list_params and req[key] != '' and req[key] is not None:
             # Coverts string into python list as expected.
             data[key] = json.loads(req[key], encoding='utf-8')
-        elif (key == 'proretset' or key == 'proisstrict' or
-              key == 'prosecdef' or key == 'proiswindow' or
-              key == 'proleakproof'):
+        elif key in [
+            'proretset',
+            'proisstrict',
+            'prosecdef',
+            'proiswindow',
+            'proleakproof',
+        ]:
             if req[key] == 'true' or req[key] is True:
                 data[key] = True
             else:
@@ -293,11 +297,11 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         This function is used to get the request data.
         :return:
         """
-        if request.data:
-            req = json.loads(request.data, encoding='utf-8')
-        else:
-            req = request.args or request.form
-        return req
+        return (
+            json.loads(request.data, encoding='utf-8')
+            if request.data
+            else request.args or request.form
+        )
 
     def validate_request(f):
         """
@@ -388,11 +392,10 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                               scid=scid)
         status, res = self.conn.execute_dict(sql)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -407,7 +410,6 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             scid: Schema Id
         """
 
-        res = []
         sql = render_template(
             "/".join([self.sql_template_path, self._NODE_SQL]),
             scid=scid,
@@ -432,22 +434,24 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                     row['oid'],
                     scid,
                     row['name'],
-                    icon="icon-" + self.node_type,
+                    icon=f"icon-{self.node_type}",
                     funcowner=row['funcowner'],
-                    language=row['lanname']
+                    language=row['lanname'],
                 )
             )
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    scid,
-                    row['name'],
-                    icon="icon-" + self.node_type,
-                    funcowner=row['funcowner'],
-                    language=row['lanname']
-                ))
+
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'],
+                scid,
+                row['name'],
+                icon=f"icon-{self.node_type}",
+                funcowner=row['funcowner'],
+                language=row['lanname'],
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -489,16 +493,18 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         :param data:
         :return:
         """
-        proargtypes = [ptype for ptype in data['proargtypenames'].split(",")] \
-            if data['proargtypenames'] else []
-        proargmodes = data['proargmodes'] if data['proargmodes'] else \
-            ['i'] * len(proargtypes)
-        proargnames = data['proargnames'] if data['proargnames'] else []
+        proargtypes = (
+            list(data['proargtypenames'].split(","))
+            if data['proargtypenames']
+            else []
+        )
+
+        proargmodes = data['proargmodes'] or ['i'] * len(proargtypes)
+        proargnames = data['proargnames'] or []
         proargdefaultvals = re.split(
             r',(?=(?:[^\"\']*[\"\'][^\"\']*[\"\'])*[^\"\']*$)',
             data['proargdefaultvals']) if data['proargdefaultvals'] else []
-        proallargtypes = data['proallargtypes'] \
-            if data['proallargtypes'] else []
+        proallargtypes = data['proallargtypes'] or []
 
         return {'proargtypes': proargtypes, 'proargmodes': proargmodes,
                 'proargnames': proargnames,
@@ -524,15 +530,18 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 proargdefaultvals.insert(0, '')
                 dif -= 1
 
-        param = {"arguments": [
-            self._map_arguments_dict(
-                i, proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
-                proargtypes[i] if len(proargtypes) > i else '',
-                proargnames[i] if len(proargnames) > i else '',
-                proargdefaultvals[i] if len(proargdefaultvals) > i else ''
-            )
-            for i in range(len(proargtypes))]}
-        return param
+        return {
+            "arguments": [
+                self._map_arguments_dict(
+                    i,
+                    proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
+                    proargtypes[i] if len(proargtypes) > i else '',
+                    proargnames[i] if len(proargnames) > i else '',
+                    proargdefaultvals[i] if len(proargdefaultvals) > i else '',
+                )
+                for i in range(len(proargtypes))
+            ]
+        }
 
     def _display_properties_argument_list(self, proargmodes_fltrd,
                                           proargtypes, proargnames,
@@ -545,15 +554,15 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         :param proargdefaultvals:
         :return:
         """
-        proargs = [self._map_arguments_list(
-            proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
-            proargtypes[i] if len(proargtypes) > i else '',
-            proargnames[i] if len(proargnames) > i else '',
-            proargdefaultvals[i] if len(proargdefaultvals) > i else ''
-        )
-            for i in range(len(proargtypes))]
-
-        return proargs
+        return [
+            self._map_arguments_list(
+                proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
+                proargtypes[i] if len(proargtypes) > i else '',
+                proargnames[i] if len(proargnames) > i else '',
+                proargdefaultvals[i] if len(proargdefaultvals) > i else '',
+            )
+            for i in range(len(proargtypes))
+        ]
 
     def _format_arguments_from_db(self, data):
         """
@@ -614,8 +623,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
 
         proargmodes_fltrd = copy.deepcopy(proargmodes)
         proargnames_fltrd = []
-        cnt = 0
-        for m in proargmodes:
+        for cnt, m in enumerate(proargmodes):
             if m == 'o':  # Out Mode
                 sql = render_template("/".join([self.sql_template_path,
                                                 'get_out_types.sql']),
@@ -633,14 +641,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 proargmodes_fltrd.remove(m)
                 proargnames_fltrd.append(proargnames[cnt])
 
-            cnt += 1
-
-        cnt = 0
         # Map param's short form to its actual name. (ex: 'i' to 'IN')
-        for m in proargmodes_fltrd:
+        for cnt, m in enumerate(proargmodes_fltrd):
             proargmodes_fltrd[cnt] = proargmodenames[m]
-            cnt += 1
-
         # Removes Argument Names from the list if that argument is removed
         # from the list
         for i in proargnames_fltrd:
@@ -701,13 +704,13 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         arg = ''
 
         if argmode:
-            arg += argmode + " "
+            arg += f"{argmode} "
         if argname:
-            arg += argname + " "
+            arg += f"{argname} "
         if argtype:
-            arg += argtype + " "
+            arg += f"{argtype} "
         if argdef:
-            arg += " DEFAULT " + argdef
+            arg += f" DEFAULT {argdef}"
 
         return arg.strip(" ")
 
@@ -738,22 +741,20 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         """
 
         condition = "(typtype IN ('b', 'c', 'd', 'e', 'p', 'r') AND " \
-                    "typname NOT IN ('any', 'trigger', 'language_handler', " \
-                    "'event_trigger'))"
+                        "typname NOT IN ('any', 'trigger', 'language_handler', " \
+                        "'event_trigger'))"
         if not self.blueprint.show_system_objects:
             condition += " AND nspname NOT LIKE E'pg\\\\_toast%' AND " \
-                         "nspname NOT LIKE E'pg\\\\_temp%' AND "\
-                         "nspname != 'information_schema'"
+                             "nspname NOT LIKE E'pg\\\\_temp%' AND "\
+                             "nspname != 'information_schema'"
 
         # Get Types
         status, types = self.get_types(self.conn, condition, False, scid)
 
-        if not status:
-            return internal_server_error(errormsg=types)
-
-        return make_json_response(
-            data=types,
-            status=200
+        return (
+            make_json_response(data=types, status=200)
+            if status
+            else internal_server_error(errormsg=types)
         )
 
     @check_precondition
@@ -778,7 +779,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
 
-            res = res + rows['rows']
+            res += rows['rows']
 
             return make_json_response(
                 data=res,
@@ -809,12 +810,10 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         )
         status, rset = self.conn.execute_dict(sql)
 
-        if not status:
-            return internal_server_error(errormsg=rset)
-
-        return make_json_response(
-            data=rset['rows'],
-            status=200
+        return (
+            make_json_response(data=rset['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=rset)
         )
 
     @check_precondition
@@ -862,9 +861,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 res['oid'],
                 res['nsp'],
                 res['name'],
-                icon="icon-" + self.node_type,
+                icon=f"icon-{self.node_type}",
                 language=res['lanname'],
-                funcowner=res['funcowner']
+                funcowner=res['funcowner'],
             )
         )
 
@@ -881,9 +880,8 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             fnid: Function Id
         """
         if fnid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
+            data = request.form or json.loads(request.data, encoding='utf-8')
+
         else:
             data = {'ids': [fnid]}
 
@@ -949,36 +947,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=sql)
 
-        if sql and sql.strip('\n') and sql.strip(' '):
-
-            status, res = self.conn.execute_scalar(sql)
-            if not status:
-                return internal_server_error(errormsg=res)
-
-            resp_data = self._fetch_properties(gid, sid, did, scid, fnid)
-            # Most probably this is due to error
-            if not isinstance(resp_data, dict):
-                return resp_data
-
-            if self.node_type == 'procedure':
-                obj_name = resp_data['name_with_args']
-            elif self.node_type == 'function':
-                args = resp_data['proargs'] if resp_data['proargs'] else ''
-                obj_name = resp_data['name'] + '({0})'.format(args)
-            else:
-                obj_name = resp_data['name'] + '()'
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    fnid,
-                    resp_data['pronamespace'],
-                    obj_name,
-                    icon="icon-" + self.node_type,
-                    language=resp_data['lanname'],
-                    funcowner=resp_data['funcowner']
-                )
-            )
-        else:
+        if not sql or not sql.strip('\n') or not sql.strip(' '):
             return make_json_response(
                 success=1,
                 info="Nothing to update.",
@@ -990,6 +959,33 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                     'did': did
                 }
             )
+        status, res = self.conn.execute_scalar(sql)
+        if not status:
+            return internal_server_error(errormsg=res)
+
+        resp_data = self._fetch_properties(gid, sid, did, scid, fnid)
+        # Most probably this is due to error
+        if not isinstance(resp_data, dict):
+            return resp_data
+
+        if self.node_type == 'function':
+            args = resp_data['proargs'] or ''
+            obj_name = resp_data['name'] + '({0})'.format(args)
+        elif self.node_type == 'procedure':
+            obj_name = resp_data['name_with_args']
+        else:
+            obj_name = resp_data['name'] + '()'
+
+        return jsonify(
+            node=self.blueprint.generate_browser_node(
+                fnid,
+                resp_data['pronamespace'],
+                obj_name,
+                icon=f"icon-{self.node_type}",
+                language=resp_data['lanname'],
+                funcowner=resp_data['funcowner'],
+            )
+        )
 
     @staticmethod
     def _check_argtype(args, args_without_name, a):
@@ -1013,8 +1009,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         :param args_without_name:
         :return:
         """
-        cnt = 1
-        for a in args_list:
+        for cnt, a in enumerate(args_list, start=1):
             if (
                 (
                     'argmode' in a and a['argmode'] != 'OUT' and
@@ -1038,7 +1033,6 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
 
                 if cnt < len(args_list):
                     args += ', '
-            cnt += 1
 
     def _parse_privilege_data(self, resp_data):
         """
@@ -1084,20 +1078,16 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             res['rows'][0]['nspname'],
             res['rows'][0]['proname']
         ) + '(\n\t' + res['rows'][0]['func_args']. \
-            replace(', ', ',\n\t') + ')'
+                replace(', ', ',\n\t') + ')'
 
-        # Generate sql for "SQL panel"
-        # func_def is function signature with default arguments
-        # query_for - To distinguish the type of call
-        func_def = render_template("/".join([self.sql_template_path,
-                                             self._CREATE_SQL]),
-                                   data=resp_data, query_type="create",
-                                   func_def=name_with_default_args,
-                                   query_for="sql_panel",
-                                   add_replace_clause=True
-                                   )
-
-        return func_def
+        return render_template(
+            "/".join([self.sql_template_path, self._CREATE_SQL]),
+            data=resp_data,
+            query_type="create",
+            func_def=name_with_default_args,
+            query_for="sql_panel",
+            add_replace_clause=True,
+        )
 
     def _get_procedure_definition(self, scid, fnid, resp_data, target_schema):
 
@@ -1118,18 +1108,15 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             res['rows'][0]['nspname'],
             res['rows'][0]['proname']
         ) + '(\n\t' + res['rows'][0]['func_args'].\
-            replace(', ', ',\n\t') + ')'
+                replace(', ', ',\n\t') + ')'
 
-        # Generate sql for "SQL panel"
-        # func_def is procedure signature with default arguments
-        # query_for - To distinguish the type of call
-        func_def = render_template("/".join([self.sql_template_path,
-                                             self._CREATE_SQL]),
-                                   data=resp_data, query_type="create",
-                                   func_def=name_with_default_args,
-                                   query_for="sql_panel")
-
-        return func_def
+        return render_template(
+            "/".join([self.sql_template_path, self._CREATE_SQL]),
+            data=resp_data,
+            query_type="create",
+            func_def=name_with_default_args,
+            query_for="sql_panel",
+        )
 
     @check_precondition
     def sql(self, gid, sid, did, scid, fnid=None, **kwargs):
@@ -1145,15 +1132,13 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             json_resp:
         """
         json_resp = kwargs.get('json_resp', True)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         resp_data = self._fetch_properties(gid, sid, did, scid, fnid)
         # Most probably this is due to error
         if not isinstance(resp_data, dict):
             return resp_data
 
-        # Fetch the function definition.
-        args = ''
         args_without_name = []
 
         args_list = []
@@ -1163,6 +1148,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             args_list = resp_data['arguments']
             resp_data['args'] = resp_data['arguments']
 
+        args = ''
         self._get_arguments(args_list, args, args_without_name)
 
         resp_data['func_args'] = args.strip(' ')
@@ -1195,7 +1181,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             # function is in another schema, so to show the SQL we need to
             # change the schema id i.e scid.
             if self.node_type == 'trigger_function' and \
-                    scid != resp_data['pronamespace']:
+                        scid != resp_data['pronamespace']:
                 scid = resp_data['pronamespace']
 
             # Get Schema Name from its OID.
@@ -1212,13 +1198,17 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             return func_def
 
         sql_header = """-- {0}: {1}.{2}({3})\n\n""".format(
-            object_type.upper(), resp_data['pronamespace'],
+            object_type.upper(),
+            resp_data['pronamespace'],
             resp_data['proname'],
-            resp_data['proargtypenames'].lstrip('(').rstrip(')'))
-        sql_header += """-- DROP {0} IF EXISTS {1}({2});\n\n""".format(
-            object_type.upper(), self.qtIdent(
-                self.conn, resp_data['pronamespace'], resp_data['proname']),
-            resp_data['proargtypenames'].lstrip('(').rstrip(')'))
+            resp_data['proargtypenames'].lstrip('(').rstrip(')'),
+        ) + """-- DROP {0} IF EXISTS {1}({2});\n\n""".format(
+            object_type.upper(),
+            self.qtIdent(
+                self.conn, resp_data['pronamespace'], resp_data['proname']
+            ),
+            resp_data['proargtypenames'].lstrip('(').rstrip(')'),
+        )
 
         pattern = '\n{2,}'
         repl = '\n\n'
@@ -1396,13 +1386,13 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         )
 
         if 'provolatile' in old_data and \
-                old_data['provolatile'] is not None:
+                    old_data['provolatile'] is not None:
             old_data['provolatile'] = vol_dict[old_data['provolatile']]
 
         if 'proparallel' in old_data and \
-                old_data['proparallel'] is not None:
+                    old_data['proparallel'] is not None:
             old_data['proparallel'] = \
-                parallel_dict[old_data['proparallel']]
+                    parallel_dict[old_data['proparallel']]
 
         # If any of the below argument is changed,
         # then CREATE OR REPLACE SQL statement should be called
@@ -1472,13 +1462,10 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                     data['prosrc'] = ''.join((data['prosrc'], ';'))
             else:
                 data['is_pure_sql'] = False
-        else:
-            # when function/procedure definition is changed, we need to find
-            # whether definition is of pure or have std sql definition.
-            if lanname == 'sql' and self._is_function_def_sql_standard(data):
-                data['is_pure_sql'] = True
-                if data['prosrc'].endswith(';') is False:
-                    data['prosrc'] = ''.join((data['prosrc'], ';'))
+        elif lanname == 'sql' and self._is_function_def_sql_standard(data):
+            data['is_pure_sql'] = True
+            if data['prosrc'].endswith(';') is False:
+                data['prosrc'] = ''.join((data['prosrc'], ';'))
 
     def _get_sql(self, **kwargs):
         """
@@ -1492,7 +1479,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         did = kwargs.get('did')
         scid = kwargs.get('scid')
         data = kwargs.get('data')
-        fnid = kwargs.get('fnid', None)
+        fnid = kwargs.get('fnid')
         is_sql = kwargs.get('is_sql', False)
         is_schema_diff = kwargs.get('is_schema_diff', False)
         allow_code_formatting = kwargs.get('allow_code_formatting', True)
@@ -1507,7 +1494,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             # Edit Mode
             if 'provolatile' in data:
                 data['provolatile'] = vol_dict[data['provolatile']] \
-                    if data['provolatile'] else ''
+                        if data['provolatile'] else ''
 
             all_ids_dict = {
                 'gid': gid,
@@ -1644,23 +1631,17 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
 
         status, schema_name = self.conn.execute_scalar(sql)
 
-        if not status:
-            return internal_server_error(errormsg=schema_name)
-
-        return schema_name
+        return schema_name if status else internal_server_error(errormsg=schema_name)
 
     def _set_revoke_all(self, privileges):
         """
         Check whether the function requires REVOKE statement
         for PUBLIC or not.
         """
-        revoke_all = True if len(privileges) > 0 else False
-        for p in privileges:
-            if p['grantee'] == 'PUBLIC':
-                revoke_all = False
-                break
-
-        return revoke_all
+        return next(
+            (False for p in privileges if p['grantee'] == 'PUBLIC'),
+            len(privileges) > 0,
+        )
 
     @check_precondition
     def get_support_functions(self, gid, sid, did, scid):
@@ -1679,11 +1660,11 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
 
-            for row in rset['rows']:
-                res.append(
-                    {'label': row['sfunctions'],
-                     'value': row['sfunctions']}
-                )
+            res.extend(
+                {'label': row['sfunctions'], 'value': row['sfunctions']}
+                for row in rset['rows']
+            )
+
             return make_json_response(
                 data=res,
                 status=200
@@ -1860,12 +1841,10 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             )
         )
 
-        if not status:
-            return internal_server_error(errormsg=res)
-
-        return make_json_response(
-            data=res,
-            status=200
+        return (
+            make_json_response(data=res, status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     def get_sql_from_diff(self, **kwargs):
@@ -1879,9 +1858,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         did = kwargs.get('did')
         scid = kwargs.get('scid')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         if data:
             if target_schema:
@@ -1896,16 +1875,15 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 drop_fun_sql = self.delete(gid=gid, sid=sid, did=did,
                                            scid=scid, fnid=oid, only_sql=True)
                 sql = drop_fun_sql + '\n' + sql
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did,
+                              scid=scid, fnid=oid, only_sql=True)
+        elif target_schema:
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
+                           target_schema=target_schema, json_resp=False)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did,
-                                  scid=scid, fnid=oid, only_sql=True)
-            elif target_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
-                               target_schema=target_schema, json_resp=False)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
-                               json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
+                           json_resp=False)
         return sql
 
     def reformat_prosrc_code(self, data):
@@ -1939,15 +1917,15 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         :param scid: Schema Id
         :return:
         """
-        res = dict()
+        res = {}
         server_type = self.manager.server_type
         server_version = self.manager.sversion
 
         if server_type == 'pg' and self.blueprint.min_ver is not None and \
-                server_version < self.blueprint.min_ver:
+                    server_version < self.blueprint.min_ver:
             return res
         if server_type == 'ppas' and self.blueprint.min_ppasver is not None \
-                and server_version < self.blueprint.min_ppasver:
+                    and server_version < self.blueprint.min_ppasver:
             return res
 
         if not oid:
@@ -1985,29 +1963,29 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         if 'lanname' in resp_data and resp_data['lanname'] != 'sql':
             return False
 
-        # invalid regex, these combination should not be present in the sql
-        invalid_match = [r"^.*(?:\'|\")?.*(?=.*?atomic).*(?:\'|\").*$",
-                         r"^.*(?:\"|\')(?=.*(atomic)).*$"]
-
-        # valid regex, these combination a must in definition to detect a
-        # standard sql or pure sql
-        valid_match = [
-            r"(?=.*begin)(.+?(\n)+)(?=.*atomic)|(?=.*begin)(?=.*atomic)",
-            r"(?=return)"
-        ]
-
         is_func_def_sql_std = False
 
         if 'prosrc' in resp_data and resp_data['prosrc'] is not None \
-                and resp_data['prosrc'] != '':
+                    and resp_data['prosrc'] != '':
 
             prosrc = str(resp_data['prosrc']).lower().strip('\n').strip('\t')
+
+            # invalid regex, these combination should not be present in the sql
+            invalid_match = [r"^.*(?:\'|\")?.*(?=.*?atomic).*(?:\'|\").*$",
+                             r"^.*(?:\"|\')(?=.*(atomic)).*$"]
 
             for invalid in invalid_match:
                 for match in enumerate(
                         re.finditer(invalid, prosrc, re.MULTILINE), start=1):
                     if match:
                         return is_func_def_sql_std
+
+            # valid regex, these combination a must in definition to detect a
+            # standard sql or pure sql
+            valid_match = [
+                r"(?=.*begin)(.+?(\n)+)(?=.*atomic)|(?=.*begin)(?=.*atomic)",
+                r"(?=return)"
+            ]
 
             for valid in valid_match:
                 for match in enumerate(

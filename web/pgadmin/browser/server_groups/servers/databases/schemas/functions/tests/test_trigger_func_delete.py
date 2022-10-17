@@ -29,7 +29,7 @@ class TriggerFuncDeleteTestCase(BaseTestGenerator):
         super(TriggerFuncDeleteTestCase, self).setUp()
         self = funcs_utils.set_up(self)
 
-        func_name = "test_event_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name = f"test_event_delete_{str(uuid.uuid4())[1:8]}"
         function_info = funcs_utils.create_trigger_function(
             self.server, self.db_name, self.schema_name, func_name,
             self.server_version)

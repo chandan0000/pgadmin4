@@ -263,11 +263,10 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
                                         self._PROPERTIES_SQL]))
         status, res = self.conn.execute_dict(sql)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -281,21 +280,18 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             sid: Server ID
             did: Database ID
         """
-        res = []
         sql = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]))
         status, result = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=result)
 
-        for row in result['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    did,
-                    row['name'],
-                    icon="icon-language"
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], did, row['name'], icon="icon-language"
+            )
+            for row in result['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -345,13 +341,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             lid: Language ID
         """
         status, res = self._fetch_properties(did, lid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, did, lid):
         """
@@ -417,9 +407,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             did: Database ID
             lid: Language ID
         """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         try:
             sql, name = self.get_sql(data, lid)
@@ -428,17 +417,16 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
                 return sql
             sql = sql.strip('\n').strip(' ')
             status, res = self.conn.execute_dict(sql)
-            if not status:
-                return internal_server_error(errormsg=res)
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    lid,
-                    did,
-                    name,
-                    icon="icon-%s" % self.node_type
+            return (
+                jsonify(
+                    node=self.blueprint.generate_browser_node(
+                        lid, did, name, icon=f"icon-{self.node_type}"
+                    )
                 )
+                if status
+                else internal_server_error(errormsg=res)
             )
+
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
@@ -456,9 +444,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             'name'
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         for arg in required_args:
             if arg not in data:
                 return make_json_response(
@@ -515,9 +502,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             only_sql:
         """
         if lid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
+            data = request.form or json.loads(request.data, encoding='utf-8')
+
         else:
             data = {'ids': [lid]}
 
@@ -574,10 +560,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             try:
                 # comments should be taken as is because if user enters a
                 # json comment it is parsed by loads which should not happen
-                if k in ('description',):
-                    data[k] = v
-                else:
-                    data[k] = json.loads(v, encoding='utf-8')
+                data[k] = v if k in ('description',) else json.loads(v, encoding='utf-8')
             except ValueError:
                 data[k] = v
         try:
@@ -625,10 +608,6 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             data: Contains the data of the selected language node.
             lid: Language ID
         """
-        required_args = [
-            'name', 'lanowner', 'description'
-        ]
-
         if lid is not None:
             sql = render_template(
                 "/".join([self.template_path, self._PROPERTIES_SQL]), lid=lid
@@ -643,6 +622,10 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             LanguageView._parse_privileges(data)
 
             old_data = res['rows'][0]
+            required_args = [
+                'name', 'lanowner', 'description'
+            ]
+
             for arg in required_args:
                 if arg not in data:
                     data[arg] = old_data[arg]
@@ -651,7 +634,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
                 data=data, o_data=old_data, conn=self.conn
             )
             return sql.strip('\n'), data['name'] if 'name' in data \
-                else old_data['name']
+                    else old_data['name']
         else:
 
             if 'lanacl' in data:
@@ -676,11 +659,10 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         sql = render_template("/".join([self.template_path,
                                         self._FUNCTIONS_SQL]))
         status, result = self.conn.execute_dict(sql)
-        if not status:
-            return internal_server_error(errormsg=result)
-        return make_json_response(
-            data=result['rows'],
-            status=200
+        return (
+            make_json_response(data=result['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=result)
         )
 
     @check_precondition
@@ -772,10 +754,11 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             data=old_data, conn=self.conn, add_replace_clause=True
         )
 
-        if not json_resp:
-            return sql.strip('\n')
-
-        return ajax_response(response=sql.strip('\n'))
+        return (
+            ajax_response(response=sql.strip('\n'))
+            if json_resp
+            else sql.strip('\n')
+        )
 
     @check_precondition
     def dependents(self, gid, sid, did, lid):
@@ -823,7 +806,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: Database Id
         :return:
         """
-        res = dict()
+        res = {}
         sql = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
                               schema_diff=True)
@@ -848,18 +831,17 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         sid = kwargs.get('sid')
         did = kwargs.get('did')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
 
         if data:
             sql, name = self.get_sql(data=data, lid=oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did,
+                              lid=oid, only_sql=True)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did,
-                                  lid=oid, only_sql=True)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, lid=oid,
-                               json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, lid=oid,
+                           json_resp=False)
         return sql
 
 

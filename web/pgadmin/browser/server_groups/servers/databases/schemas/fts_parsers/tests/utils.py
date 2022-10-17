@@ -17,7 +17,7 @@ from regression.python_test_utils.test_utils import get_db_connection
 
 file_name = os.path.basename(__file__)
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-with open(CURRENT_PATH + "/fts_parsers_test_data.json") as data_file:
+with open(f"{CURRENT_PATH}/fts_parsers_test_data.json") as data_file:
     test_cases = json.load(data_file)
 
 
@@ -33,14 +33,11 @@ def create_fts_parser(server, db_name, schema_name, fts_parser_name):
                                        server['sslmode'])
         pg_cursor = connection.cursor()
 
-        query = "DROP TEXT SEARCH PARSER IF EXISTS " + schema_name + "." + \
-                fts_parser_name
+        query = f"DROP TEXT SEARCH PARSER IF EXISTS {schema_name}.{fts_parser_name}"
         pg_cursor.execute(query)
 
-        query = "CREATE TEXT SEARCH PARSER " + schema_name + "." + \
-                fts_parser_name + \
-                "(START=prsd_start, GETTOKEN=prsd_nexttoken, " \
-                "END=prsd_end, LEXTYPES=dispell_init)"
+        query = f"CREATE TEXT SEARCH PARSER {schema_name}.{fts_parser_name}(START=prsd_start, GETTOKEN=prsd_nexttoken, END=prsd_end, LEXTYPES=dispell_init)"
+
 
         pg_cursor.execute(query)
         connection.commit()
@@ -50,10 +47,7 @@ def create_fts_parser(server, db_name, schema_name, fts_parser_name):
                           "prsname = '%s' order by oid ASC limit 1"
                           % fts_parser_name)
 
-        oid = pg_cursor.fetchone()
-        fts_parser_id = ''
-        if oid:
-            fts_parser_id = oid[0]
+        fts_parser_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return fts_parser_id
     except Exception:
@@ -113,7 +107,6 @@ def delete_fts_parser(server, db_name, schema_name, fts_parser_name):
                                    server['port'],
                                    server['sslmode'])
     pg_cursor = connection.cursor()
-    pg_cursor.execute("DROP TEXT SEARCH PARSER %s.%s" % (
-        schema_name, fts_parser_name))
+    pg_cursor.execute(f"DROP TEXT SEARCH PARSER {schema_name}.{fts_parser_name}")
     connection.commit()
     connection.close()

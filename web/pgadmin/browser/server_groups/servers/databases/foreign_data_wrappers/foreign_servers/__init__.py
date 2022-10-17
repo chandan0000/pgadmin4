@@ -253,12 +253,10 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                               fid=fid, conn=self.conn)
         status, res = self.conn.execute_dict(sql)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -275,7 +273,6 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             fid: Foreign data wrapper ID
         """
 
-        res = []
         sql = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
                               fid=fid, conn=self.conn)
@@ -284,14 +281,12 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=r_set)
 
-        for row in r_set['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    fid,
-                    row['name'],
-                    icon="icon-foreign_server"
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], fid, row['name'], icon="icon-foreign_server"
+            )
+            for row in r_set['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -347,13 +342,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             fsid: foreign server ID
         """
         status, res = self._fetch_properties(fsid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, fsid):
         """
@@ -413,9 +402,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             'name'
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         for arg in required_args:
             if arg not in data:
                 return make_json_response(
@@ -461,17 +449,19 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                                   data=data, fdwdata=fdw_data,
                                   conn=self.conn)
             status, r_set = self.conn.execute_dict(sql)
-            if not status:
-                return internal_server_error(errormsg=r_set)
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    r_set['rows'][0]['oid'],
-                    fid,
-                    r_set['rows'][0]['name'],
-                    icon="icon-foreign_server"
+            return (
+                jsonify(
+                    node=self.blueprint.generate_browser_node(
+                        r_set['rows'][0]['oid'],
+                        fid,
+                        r_set['rows'][0]['name'],
+                        icon="icon-foreign_server",
+                    )
                 )
+                if status
+                else internal_server_error(errormsg=r_set)
             )
+
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
@@ -489,9 +479,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             fsid: foreign server ID
         """
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         try:
             sql, name = self.get_sql(gid, sid, data, did, fid, fsid)
@@ -500,16 +489,14 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                 return sql
             sql = sql.strip('\n').strip(' ')
             status, res = self.conn.execute_scalar(sql)
-            if not status:
-                return internal_server_error(errormsg=res)
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    fsid,
-                    fid,
-                    name,
-                    icon="icon-%s" % self.node_type
+            return (
+                jsonify(
+                    node=self.blueprint.generate_browser_node(
+                        fsid, fid, name, icon=f"icon-{self.node_type}"
+                    )
                 )
+                if status
+                else internal_server_error(errormsg=res)
             )
 
         except Exception as e:
@@ -524,15 +511,9 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         :param request_object: request object
         :return:
         """
-        cascade = False
-        # Below will decide if it's simple drop or drop with cascade call
-        if cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-
+        cascade = cmd == 'delete'
         if fsid is None:
-            data = request_object.form if request_object.form else \
-                json.loads(request_object.data, encoding='utf-8')
+            data = request_object.form or json.loads(request_object.data, encoding='utf-8')
         else:
             data = {'ids': [fsid]}
 
@@ -618,10 +599,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             try:
                 # comments should be taken as is because if user enters a
                 # json comment it is parsed by loads which should not happen
-                if k in ('description',):
-                    data[k] = v
-                else:
-                    data[k] = json.loads(v, encoding='utf-8')
+                data[k] = v if k in ('description',) else json.loads(v, encoding='utf-8')
             except ValueError:
                 data[k] = v
         try:
@@ -728,8 +706,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
 
             old_data = res['rows'][0]
             is_valid_added_options, \
-                is_valid_changed_options = \
-                ForeignServerView._validate_fsvr_options(data, old_data)
+                    is_valid_changed_options = \
+                    ForeignServerView._validate_fsvr_options(data, old_data)
 
             sql = render_template(
                 "/".join([self.template_path, self._UPDATE_SQL]),
@@ -740,7 +718,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                 conn=self.conn
             )
             return sql.strip('\n'), \
-                data['name'] if 'name' in data else old_data['name']
+                    data['name'] if 'name' in data else old_data['name']
         else:
             sql = render_template("/".join([self.template_path,
                                             self._PROPERTIES_SQL]),
@@ -859,10 +837,11 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
 
         sql = sql_header + sql
 
-        if not json_resp:
-            return sql.strip('\n')
-
-        return ajax_response(response=sql.strip('\n'))
+        return (
+            ajax_response(response=sql.strip('\n'))
+            if json_resp
+            else sql.strip('\n')
+        )
 
     @check_precondition
     def dependents(self, gid, sid, did, fid, fsid):
@@ -926,7 +905,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: Database Id
         :return:
         """
-        res = dict()
+        res = {}
 
         sql = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
@@ -957,19 +936,18 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         did = kwargs.get('did')
         fdw_id = kwargs.get('fdwid')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
 
         if data:
             sql, name = self.get_sql(gid=gid, sid=sid, did=did, data=data,
                                      fid=fdw_id, fsid=oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did, fid=fdw_id,
+                              fsid=oid, only_sql=True)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did, fid=fdw_id,
-                                  fsid=oid, only_sql=True)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, fid=fdw_id,
-                               fsid=oid, json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, fid=fdw_id,
+                           fsid=oid, json_resp=False)
         return sql
 
 

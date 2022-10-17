@@ -193,11 +193,10 @@ class OperatorView(PGChildNodeView):
                                         self._NODES_SQL]), scid=scid)
         status, res = self.conn.execute_dict(SQL)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -217,21 +216,18 @@ class OperatorView(PGChildNodeView):
             JSON of available operator child nodes
         """
 
-        res = []
         SQL = render_template("/".join([self.template_path,
                                         self._NODES_SQL]), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    scid,
-                    row['name'],
-                    icon="icon-operator"
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], scid, row['name'], icon="icon-operator"
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -291,13 +287,7 @@ class OperatorView(PGChildNodeView):
         """
 
         status, res = self._fetch_properties(scid, opid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, scid, opid):
         """

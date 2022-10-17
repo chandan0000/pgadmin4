@@ -37,13 +37,10 @@ class PackageAddTestCase(BaseTestGenerator):
         self.db_name = parent_node_dict["database"][-1]["db_name"]
         self.server_id = schema_info["server_id"]
         self.db_id = schema_info["db_id"]
-        server_con = server_utils.connect_server(self, self.server_id)
-
-        if server_con:
-            if "type" in server_con["data"]:
-                if server_con["data"]["type"] == "pg":
-                    message = "Packages are not supported by PG."
-                    self.skipTest(message)
+        if server_con := server_utils.connect_server(self, self.server_id):
+            if "type" in server_con["data"] and server_con["data"]["type"] == "pg":
+                message = "Packages are not supported by PG."
+                self.skipTest(message)
 
     def runTest(self):
         """ This function will add package under test schema. """
@@ -53,7 +50,7 @@ class PackageAddTestCase(BaseTestGenerator):
                                                  self.server_id,
                                                  self.db_id)
 
-        if not db_con["info"] == "Database connected.":
+        if db_con["info"] != "Database connected.":
             raise Exception("Could not connect to database.")
 
         schema_response = schema_utils.verify_schemas(self.server,
@@ -62,18 +59,18 @@ class PackageAddTestCase(BaseTestGenerator):
         if not schema_response:
             raise Exception("Could not find the schema.")
 
-        data = \
-            {
-                "name": "pkg_%s" % str(uuid.uuid4())[1:8],
-                "owner": self.server["username"],
-                "pkgacl": [],
-                "pkgbodysrc": "PROCEDURE p1() is \n"
-                              "begin \n"
-                              "dbms_output.put_line('Test_pkg.Proc...'); "
-                              "\nEND\t;",
-                "pkgheadsrc": "PROCEDURE p1();",
-                "schema": self.schema_id
-            }
+        data = {
+            "name": f"pkg_{str(uuid.uuid4())[1:8]}",
+            "owner": self.server["username"],
+            "pkgacl": [],
+            "pkgbodysrc": "PROCEDURE p1() is \n"
+            "begin \n"
+            "dbms_output.put_line('Test_pkg.Proc...'); "
+            "\nEND\t;",
+            "pkgheadsrc": "PROCEDURE p1();",
+            "schema": self.schema_id,
+        }
+
 
         response = self.tester.post(
             self.url + str(utils.SERVER_GROUP) + '/' +

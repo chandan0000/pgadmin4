@@ -233,7 +233,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :return:
         """
         last_system_oid = 0 if self.blueprint.show_system_objects else \
-            self._DATABASE_LAST_SYSTEM_OID
+                self._DATABASE_LAST_SYSTEM_OID
         sql = render_template(
             "/".join([self.template_path, self._PROPERTIES_SQL]),
             datlastsysoid=last_system_oid,
@@ -245,8 +245,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             return internal_server_error(errormsg=res)
 
         for row in res['rows']:
-            row['castcontext'] = True if row['castcontext'] == 'IMPLICIT' \
-                else False
+            row['castcontext'] = row['castcontext'] == 'IMPLICIT'
 
         return ajax_response(
             response=res['rows'],
@@ -263,9 +262,8 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: database id
         :return:
         """
-        res = []
         last_system_oid = 0 if self.blueprint.show_system_objects else \
-            self._DATABASE_LAST_SYSTEM_OID
+                self._DATABASE_LAST_SYSTEM_OID
 
         sql = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
@@ -276,14 +274,12 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    did,
-                    row['name'],
-                    icon="icon-cast"
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], did, row['name'], icon="icon-cast"
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -327,13 +323,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :return:
         """
         status, res = self._fetch_properties(did, cid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, did, cid):
         """
@@ -342,8 +332,12 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param cid:
         :return:
         """
-        last_system_oid = 0 if not self.blueprint.show_system_objects else \
+        last_system_oid = (
             self._DATABASE_LAST_SYSTEM_OID
+            if self.blueprint.show_system_objects
+            else 0
+        )
+
         sql = render_template(
             "/".join([self.template_path, self._PROPERTIES_SQL]),
             cid=cid,
@@ -377,9 +371,8 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             'trgtyp'
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         for arg in required_args:
             if arg not in data:
                 return make_json_response(
@@ -402,7 +395,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             # we need oid to add object in tree at browser, below sql will
             # gives the same
             last_system_oid = 0 if self.blueprint.show_system_objects else \
-                self._DATABASE_LAST_SYSTEM_OID
+                    self._DATABASE_LAST_SYSTEM_OID
             sql = render_template(
                 "/".join([self.template_path, self._PROPERTIES_SQL]),
                 srctyp=data['srctyp'],
@@ -411,17 +404,16 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
                 showsysobj=self.blueprint.show_system_objects
             )
             status, cid = self.conn.execute_scalar(sql)
-            if not status:
-                return internal_server_error(errormsg=cid)
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    cid,
-                    did,
-                    data['name'],
-                    icon="icon-cast"
+            return (
+                jsonify(
+                    node=self.blueprint.generate_browser_node(
+                        cid, did, data['name'], icon="icon-cast"
+                    )
                 )
+                if status
+                else internal_server_error(errormsg=cid)
             )
+
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
@@ -435,25 +427,22 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param gid: group id
         :return:
         """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         try:
             sql, name = self.get_sql(gid, sid, did, data, cid)
             # Most probably this is due to error
             if not isinstance(sql, str):
                 return sql
             status, res = self.conn.execute_scalar(sql)
-            if not status:
-                return internal_server_error(errormsg=res)
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    cid,
-                    did,
-                    name,
-                    "icon-{0}".format(self.node_type)
+            return (
+                jsonify(
+                    node=self.blueprint.generate_browser_node(
+                        cid, did, name, "icon-{0}".format(self.node_type)
+                    )
                 )
+                if status
+                else internal_server_error(errormsg=res)
             )
 
         except Exception as e:
@@ -468,15 +457,9 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param request_object: request object
         :return:
         """
-        cascade = False
-        # Below will decide if it's simple drop or drop with cascade call
-        if cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-
+        cascade = cmd == 'delete'
         if cid is None:
-            data = request_object.form if request_object.form else \
-                json.loads(request_object.data, encoding='utf-8')
+            data = request_object.form or json.loads(request_object.data, encoding='utf-8')
         else:
             data = {'ids': [cid]}
 
@@ -579,7 +562,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         """
         if cid is not None:
             last_system_oid = 0 if self.blueprint.show_system_objects else \
-                self._DATABASE_LAST_SYSTEM_OID
+                    self._DATABASE_LAST_SYSTEM_OID
             sql = render_template(
                 "/".join([self.template_path, self._PROPERTIES_SQL]),
                 cid=cid,
@@ -622,10 +605,8 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param cid: cast id
         :return:
         """
-        res = []
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         sql = render_template("/".join([self.template_path,
                                         self._FUNCTIONS_SQL]),
@@ -635,12 +616,12 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
 
         if not status:
             return internal_server_error(errormsg=rset)
-        res.append({'label': '',
-                    'value': ''})
+        res = [{'label': '', 'value': ''}]
+        res.extend(
+            {'label': row['proname'], 'value': row['proname']}
+            for row in rset['rows']
+        )
 
-        for row in rset['rows']:
-            res.append({'label': row['proname'],
-                        'value': row['proname']})
         return make_json_response(
             data=res,
             status=200
@@ -667,11 +648,10 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             return internal_server_error(errormsg=rset)
 
         res = [{'label': '', 'value': ''}]
-        for row in rset['rows']:
-            res.append({
-                'label': row['typname'],
-                'value': row['typname']
-            })
+        res.extend(
+            {'label': row['typname'], 'value': row['typname']}
+            for row in rset['rows']
+        )
 
         return make_json_response(
             data=res,
@@ -708,11 +688,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
                     "cast node."
                 ))
 
-            if not json_resp:
-                return res
-
-            return ajax_response(response=res)
-
+            return ajax_response(response=res) if json_resp else res
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
@@ -762,7 +738,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: Database Id
         :return:
         """
-        res = dict()
+        res = {}
 
         sql = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
@@ -791,19 +767,18 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         sid = kwargs.get('sid')
         did = kwargs.get('did')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
 
         if data:
             sql, name = self.get_sql(gid=gid, sid=sid, did=did, data=data,
                                      cid=oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did,
+                              cid=oid, only_sql=True)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did,
-                                  cid=oid, only_sql=True)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, cid=oid,
-                               json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, cid=oid,
+                           json_resp=False)
         return sql
 
 

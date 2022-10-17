@@ -25,10 +25,8 @@ An registry factory for the multi-factor authentication methods.
 
 @classmethod
 def load_modules(cls, app=None):
-    submodules = []
     from . import authenticator as module
-    submodules.append(module)
-
+    submodules = [module]
     from . import email as module
     submodules.append(module)
 

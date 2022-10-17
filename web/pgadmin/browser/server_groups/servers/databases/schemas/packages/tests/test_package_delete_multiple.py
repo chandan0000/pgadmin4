@@ -38,19 +38,16 @@ class PackageDeleteMultipleTestCase(BaseTestGenerator):
         self.db_name = parent_node_dict["database"][-1]["db_name"]
         self.server_id = schema_info["server_id"]
         self.db_id = schema_info["db_id"]
-        server_con = server_utils.connect_server(self, self.server_id)
+        if server_con := server_utils.connect_server(self, self.server_id):
+            if "type" in server_con["data"] and server_con["data"]["type"] == "pg":
+                message = "Packages are not supported by PG."
+                self.skipTest(message)
 
-        if server_con:
-            if "type" in server_con["data"]:
-                if server_con["data"]["type"] == "pg":
-                    message = "Packages are not supported by PG."
-                    self.skipTest(message)
+        self.pkg_name = f"pkg_{str(uuid.uuid4())[1:8]}"
+        self.proc_name = f"proc_{str(uuid.uuid4())[1:8]}"
 
-        self.pkg_name = "pkg_%s" % str(uuid.uuid4())[1:8]
-        self.proc_name = "proc_%s" % str(uuid.uuid4())[1:8]
-
-        self.pkg_name_1 = "pkg_%s" % str(uuid.uuid4())[1:8]
-        self.proc_name_1 = "proc_%s" % str(uuid.uuid4())[1:8]
+        self.pkg_name_1 = f"pkg_{str(uuid.uuid4())[1:8]}"
+        self.proc_name_1 = f"proc_{str(uuid.uuid4())[1:8]}"
 
         self.package_ids = [package_utils.create_package(self.server,
                                                          self.db_name,
@@ -72,7 +69,7 @@ class PackageDeleteMultipleTestCase(BaseTestGenerator):
                                                  self.server_id,
                                                  self.db_id)
 
-        if not db_con["info"] == "Database connected.":
+        if db_con["info"] != "Database connected.":
             raise Exception("Could not connect to database.")
 
         schema_response = schema_utils.verify_schemas(self.server,

@@ -232,17 +232,14 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         )
         status, res = self.conn.execute_dict(sql)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
     def nodes(self, gid, sid, did, scid):
-        res = []
         sql = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
             scid=scid
@@ -251,14 +248,12 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    scid,
-                    row['name'],
-                    icon="icon-fts_template"
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], scid, row['name'], icon="icon-fts_template"
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -299,13 +294,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :return:
         """
         status, res = self._fetch_properties(scid, tid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, scid, tid):
         """
@@ -348,9 +337,8 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
             'name'
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         for arg in required_args:
             if arg not in data:
                 return make_json_response(
@@ -392,16 +380,17 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
             scid=data['schema'] if 'schema' in data else scid
         )
         status, tid = self.conn.execute_scalar(sql)
-        if not status:
-            return internal_server_error(errormsg=tid)
-
-        return jsonify(
-            node=self.blueprint.generate_browser_node(
-                tid,
-                data['schema'] if 'schema' in data else scid,
-                data['name'],
-                icon="icon-fts_template"
+        return (
+            jsonify(
+                node=self.blueprint.generate_browser_node(
+                    tid,
+                    data['schema'] if 'schema' in data else scid,
+                    data['name'],
+                    icon="icon-fts_template",
+                )
             )
+            if status
+            else internal_server_error(errormsg=tid)
         )
 
     @check_precondition
@@ -414,9 +403,8 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: schema id
         :param tid: fts tempate id
         """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         # Fetch sql query to update fts template
         sql, name = self.get_sql(gid, sid, did, scid, data, tid)
@@ -440,10 +428,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
 
         return jsonify(
             node=self.blueprint.generate_browser_node(
-                tid,
-                rset['schema'],
-                rset['name'],
-                icon="icon-%s" % self.node_type
+                tid, rset['schema'], rset['name'], icon=f"icon-{self.node_type}"
             )
         )
 
@@ -459,9 +444,8 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :param only_sql: Return only sql if True
         """
         if tid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
+            data = request.form or json.loads(request.data, encoding='utf-8')
+
         else:
             data = {'ids': [tid]}
 
@@ -523,10 +507,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
             try:
                 # comments should be taken as is because if user enters a
                 # json comment it is parsed by loads which should not happen
-                if k in ('description',):
-                    data[k] = v
-                else:
-                    data[k] = json.loads(v, encoding='utf-8')
+                data[k] = v if k in ('description',) else json.loads(v, encoding='utf-8')
             except ValueError:
                 data[k] = v
 
@@ -579,19 +560,19 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         new_data = data.copy()
         new_data['schema'] = schema
 
-        if (
-            'tmpllexize' in new_data and
-            'name' in new_data and
-            'schema' in new_data
-        ):
-            sql = render_template("/".join([self.template_path,
-                                            self._CREATE_SQL]),
-                                  data=new_data,
-                                  conn=self.conn
-                                  )
-        else:
-            sql = "-- definition incomplete"
-        return sql
+        return (
+            render_template(
+                "/".join([self.template_path, self._CREATE_SQL]),
+                data=new_data,
+                conn=self.conn,
+            )
+            if (
+                'tmpllexize' in new_data
+                and 'name' in new_data
+                and 'schema' in new_data
+            )
+            else "-- definition incomplete"
+        )
 
     def get_sql(self, gid, sid, did, scid, data, tid=None):
         """
@@ -685,9 +666,11 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         # Empty set is added before actual list as initially it will be visible
         # at lexize select control while creating a new fts template
         res = [{'label': '', 'value': ''}]
-        for row in rset['rows']:
-            res.append({'label': row['proname'],
-                        'value': row['proname']})
+        res.extend(
+            {'label': row['proname'], 'value': row['proname']}
+            for row in rset['rows']
+        )
+
         return make_json_response(
             data=res,
             status=200
@@ -713,9 +696,11 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
 
         # We have added this to map against '-' which is coming from server
         res = [{'label': '', 'value': '-'}]
-        for row in rset['rows']:
-            res.append({'label': row['proname'],
-                        'value': row['proname']})
+        res.extend(
+            {'label': row['proname'], 'value': row['proname']}
+            for row in rset['rows']
+        )
+
         return make_json_response(
             data=res,
             status=200
@@ -733,7 +718,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :param json_resp: True then return json response
         """
         json_resp = kwargs.get('json_resp', True)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         sql = render_template(
             "/".join([self.template_path, 'sql.sql']),
@@ -772,10 +757,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
 
             res = res.replace(schema, target_schema)
 
-        if not json_resp:
-            return res
-
-        return ajax_response(response=res)
+        return ajax_response(response=res) if json_resp else res
 
     @check_precondition
     def dependents(self, gid, sid, did, scid, tid):
@@ -826,7 +808,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: Schema Id
         :return:
         """
-        res = dict()
+        res = {}
         SQL = render_template("/".join([self.template_path,
                                         self._NODES_SQL]), scid=scid,
                               schema_diff=True)
@@ -852,23 +834,22 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         did = kwargs.get('did')
         scid = kwargs.get('scid')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         if data:
             sql, name = self.get_sql(gid=gid, sid=sid, did=did, scid=scid,
                                      data=data, tid=oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did,
+                              scid=scid, tid=oid, only_sql=True)
+        elif target_schema:
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
+                           target_schema=target_schema, json_resp=False)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did,
-                                  scid=scid, tid=oid, only_sql=True)
-            elif target_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
-                               target_schema=target_schema, json_resp=False)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
-                               json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
+                           json_resp=False)
         return sql
 
 
