@@ -17,7 +17,7 @@ from regression.python_test_utils.test_utils import get_db_connection
 
 file_name = os.path.basename(__file__)
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-with open(CURRENT_PATH + "/fts_configurations_test_data.json") as data_file:
+with open(f"{CURRENT_PATH}/fts_configurations_test_data.json") as data_file:
     test_cases = json.load(data_file)
 
 
@@ -34,8 +34,8 @@ def create_fts_configuration(server, db_name, schema_name, fts_conf_name):
                                        server['sslmode'])
         pg_cursor = connection.cursor()
 
-        query = "CREATE TEXT SEARCH CONFIGURATION " + schema_name + "." + \
-                fts_conf_name + "(PARSER=default)"
+        query = f"CREATE TEXT SEARCH CONFIGURATION {schema_name}.{fts_conf_name}(PARSER=default)"
+
 
         pg_cursor.execute(query)
         connection.commit()
@@ -45,10 +45,7 @@ def create_fts_configuration(server, db_name, schema_name, fts_conf_name):
                           "cfgname = '%s' order by oid ASC limit 1"
                           % fts_conf_name)
 
-        oid = pg_cursor.fetchone()
-        fts_conf_id = ''
-        if oid:
-            fts_conf_id = oid[0]
+        fts_conf_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return fts_conf_id
     except Exception:
@@ -108,7 +105,9 @@ def delete_fts_configurations(server, db_name, schema_name, fts_conf_name):
                                    server['port'],
                                    server['sslmode'])
     pg_cursor = connection.cursor()
-    pg_cursor.execute("DROP TEXT SEARCH CONFIGURATION %s.%s" % (schema_name,
-                                                                fts_conf_name))
+    pg_cursor.execute(
+        f"DROP TEXT SEARCH CONFIGURATION {schema_name}.{fts_conf_name}"
+    )
+
     connection.commit()
     connection.close()

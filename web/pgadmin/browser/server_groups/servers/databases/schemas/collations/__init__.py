@@ -231,11 +231,10 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
                                         self._PROPERTIES_SQL]), scid=scid)
         status, res = self.conn.execute_dict(SQL)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -255,21 +254,18 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
             JSON of available collation child nodes
         """
 
-        res = []
         SQL = render_template("/".join([self.template_path,
                                         self._NODES_SQL]), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    scid,
-                    row['name'],
-                    icon="icon-collation"
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], scid, row['name'], icon="icon-collation"
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -329,13 +325,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
         """
 
         status, res = self._fetch_properties(scid, coid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, scid, coid):
         """
@@ -378,11 +368,11 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
 
-            for row in rset['rows']:
-                res.append(
-                    {'label': row['copy_collation'],
-                     'value': row['copy_collation']}
-                )
+            res.extend(
+                {'label': row['copy_collation'], 'value': row['copy_collation']}
+                for row in rset['rows']
+            )
+
             return make_json_response(
                 data=res,
                 status=200
@@ -428,9 +418,10 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
                 missing_definition_flag = True
 
             if (
-                (arg == 'lc_collate' or arg == 'lc_type') and
-                (arg not in data or data[arg] == '') and
-                'copy_collation' not in data and 'locale' not in data
+                arg in ['lc_collate', 'lc_type']
+                and ((arg not in data or data[arg] == ''))
+                and 'copy_collation' not in data
+                and 'locale' not in data
             ):
                 missing_definition_flag = True
 
@@ -448,9 +439,8 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
            scid: Schema ID
         """
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         required_args = [
             'schema',
@@ -498,16 +488,14 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
         )
 
         status, new_scid = self.conn.execute_scalar(SQL)
-        if not status:
-            return internal_server_error(errormsg=coid)
-
-        return jsonify(
-            node=self.blueprint.generate_browser_node(
-                coid,
-                new_scid,
-                data['name'],
-                icon="icon-collation"
+        return (
+            jsonify(
+                node=self.blueprint.generate_browser_node(
+                    coid, new_scid, data['name'], icon="icon-collation"
+                )
             )
+            if status
+            else internal_server_error(errormsg=coid)
         )
 
     @check_precondition
@@ -579,9 +567,8 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
            scid: Schema ID
            coid: Collation ID
         """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         SQL, name = self.get_sql(gid, sid, data, scid, coid)
         # Most probably this is due to error
         if not isinstance(SQL, str):
@@ -604,10 +591,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
 
         return jsonify(
             node=self.blueprint.generate_browser_node(
-                coid,
-                scid,
-                name,
-                icon="icon-%s" % self.node_type
+                coid, scid, name, icon=f"icon-{self.node_type}"
             )
         )
 
@@ -623,15 +607,12 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
            scid: Schema ID
            coid: Collation ID
         """
-        data = dict()
+        data = {}
         for k, v in request.args.items():
             try:
                 # comments should be taken as is because if user enters a
                 # json comment it is parsed by loads which should not happen
-                if k in ('description',):
-                    data[k] = v
-                else:
-                    data[k] = json.loads(v, encoding='utf-8')
+                data[k] = v if k in ('description',) else json.loads(v, encoding='utf-8')
             except ValueError:
                 data[k] = v
 
@@ -670,7 +651,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
                 data=data, o_data=old_data, conn=self.conn
             )
             return SQL.strip('\n'), data['name'] if 'name' in data else \
-                old_data['name']
+                    old_data['name']
         else:
             required_args = [
                 'name'
@@ -703,7 +684,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
            json_resp: True then return json response
         """
         json_resp = kwargs.get('json_resp', True)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         SQL = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
@@ -732,10 +713,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
                                       nspname=data['schema'])
         SQL = sql_header + '\n\n' + SQL.strip('\n')
 
-        if not json_resp:
-            return SQL
-
-        return ajax_response(response=SQL)
+        return ajax_response(response=SQL) if json_resp else SQL
 
     @check_precondition
     def dependents(self, gid, sid, did, scid, coid):
@@ -792,7 +770,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: Schema Id
         :return:
         """
-        res = dict()
+        res = {}
         SQL = render_template("/".join([self.template_path,
                                         self._NODES_SQL]), scid=scid,
                               schema_diff=True)
@@ -818,25 +796,24 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
         did = kwargs.get('did')
         scid = kwargs.get('scid')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         if data:
             if target_schema:
                 data['schema'] = target_schema
             sql, name = self.get_sql(gid=gid, sid=sid, data=data, scid=scid,
                                      coid=oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did,
+                              scid=scid, coid=oid, only_sql=True)
+        elif target_schema:
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, coid=oid,
+                           target_schema=target_schema, json_resp=False)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did,
-                                  scid=scid, coid=oid, only_sql=True)
-            elif target_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, coid=oid,
-                               target_schema=target_schema, json_resp=False)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, coid=oid,
-                               json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, coid=oid,
+                           json_resp=False)
         return sql
 
 

@@ -36,7 +36,7 @@ class FtsTemplatePutTestCase(BaseTestGenerator):
         self.server_id = self.schema_data['server_id']
         self.db_id = self.schema_data['db_id']
         self.db_name = parent_node_dict["database"][-1]["db_name"]
-        self.fts_temp_name = "fts_temp_%s" % str(uuid.uuid4())[1:8]
+        self.fts_temp_name = f"fts_temp_{str(uuid.uuid4())[1:8]}"
         self.fts_temp_id = fts_temp_utils.create_fts_template(
             self.server,
             self.db_name,
@@ -52,7 +52,7 @@ class FtsTemplatePutTestCase(BaseTestGenerator):
                                                  self.server_id,
                                                  self.db_id)
 
-        if not db_con["info"] == "Database connected.":
+        if db_con["info"] != "Database connected.":
             raise Exception("Could not connect to database.")
 
         schema_response = schema_utils.verify_schemas(self.server,
@@ -69,7 +69,7 @@ class FtsTemplatePutTestCase(BaseTestGenerator):
             raise Exception("Could not find the FTS template.")
 
         data = \
-            {
+                {
                 "description": "This is FTS template update comment",
                 "id": self.fts_temp_id
 

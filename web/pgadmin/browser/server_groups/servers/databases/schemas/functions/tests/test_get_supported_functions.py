@@ -54,19 +54,24 @@ class FunctionGetSupportedFunctionsTestCase(BaseTestGenerator):
     ]
 
     def get_supported_functions(self):
-        response = self.tester.get(
-            self.url + str(utils.SERVER_GROUP) + '/' +
-            str(self.server_id) + '/' + str(self.db_id) +
-            '/' + str(self.schema_id) + '/',
-            content_type='html/json'
+        return self.tester.get(
+            self.url
+            + str(utils.SERVER_GROUP)
+            + '/'
+            + str(self.server_id)
+            + '/'
+            + str(self.db_id)
+            + '/'
+            + str(self.schema_id)
+            + '/',
+            content_type='html/json',
         )
-        return response
 
     def runTest(self):
         """ This function will get function nodes under schema. """
         if self.server_information['server_version'] < 120000:
             message = "Supported functions are not supported by PG/EPAS " \
-                      "< 120000."
+                          "< 120000."
             self.skipTest(message)
 
         super(FunctionGetSupportedFunctionsTestCase, self).runTest()

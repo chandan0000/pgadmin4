@@ -54,13 +54,18 @@ class FunctionGetListTestCase(BaseTestGenerator):
     ]
 
     def get_list(self):
-        response = self.tester.get(
-            self.url + str(utils.SERVER_GROUP) + '/' +
-            str(self.server_id) + '/' + str(self.db_id) +
-            '/' + str(self.schema_id) + '/',
-            content_type='html/json'
+        return self.tester.get(
+            self.url
+            + str(utils.SERVER_GROUP)
+            + '/'
+            + str(self.server_id)
+            + '/'
+            + str(self.db_id)
+            + '/'
+            + str(self.schema_id)
+            + '/',
+            content_type='html/json',
         )
-        return response
 
     def runTest(self):
         """ This function will get function nodes under schema. """

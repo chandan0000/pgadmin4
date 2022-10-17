@@ -105,9 +105,12 @@ class EdbFuncModule(CollectionNodeModule):
             'show_system_objects'
         )
         self.pref_show_node = self.browser_preference.register(
-            'node', 'show_node_' + self.node_type,
-            gettext('Package {0}').format(self.label), 'node',
-            self.SHOW_ON_BROWSER, category_label=gettext('Nodes')
+            'node',
+            f'show_node_{self.node_type}',
+            gettext('Package {0}').format(self.label),
+            'node',
+            self.SHOW_ON_BROWSER,
+            category_label=gettext('Nodes'),
         )
 
     @property
@@ -251,11 +254,10 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
                               pkgid=pkgid)
         status, res = self.conn.execute_dict(SQL)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -270,7 +272,6 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
             scid: Schema Id
         """
 
-        res = []
         SQL = render_template(
             "/".join([self.sql_template_path, self._NODE_SQL]),
             pkgid=pkgid,
@@ -292,21 +293,23 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
                     row['oid'],
                     pkgid,
                     row['name'],
-                    icon="icon-" + self.node_type,
-                    funcowner=row['funcowner']
+                    icon=f"icon-{self.node_type}",
+                    funcowner=row['funcowner'],
                 ),
-                status=200
+                status=200,
             )
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    pkgid,
-                    row['name'],
-                    icon="icon-" + self.node_type,
-                    funcowner=row['funcowner']
-                ))
+
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'],
+                pkgid,
+                row['name'],
+                icon=f"icon-{self.node_type}",
+                funcowner=row['funcowner'],
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -370,13 +373,20 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
                     proargnames: Argument Name
                     proargdefaultvals: Default Value of the Argument
         """
-        proargtypes = [ptype for ptype in data['proargtypenames'].split(",")] \
-            if data['proargtypenames'] else []
-        proargmodes = data['proargmodes'] if data['proargmodes'] else []
-        proargnames = data['proargnames'] if data['proargnames'] else []
-        proargdefaultvals = [ptype for ptype in
-                             data['proargdefaultvals'].split(",")] \
-            if data['proargdefaultvals'] else []
+        proargtypes = (
+            list(data['proargtypenames'].split(","))
+            if data['proargtypenames']
+            else []
+        )
+
+        proargmodes = data['proargmodes'] or []
+        proargnames = data['proargnames'] or []
+        proargdefaultvals = (
+            list(data['proargdefaultvals'].split(","))
+            if data['proargdefaultvals']
+            else []
+        )
+
 
         proargmodenames = {'i': 'IN', 'o': 'OUT', 'b': 'INOUT',
                            'v': 'VARIADIC', 't': 'TABLE'}
@@ -481,13 +491,13 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
         arg = ''
 
         if argmode:
-            arg += argmode + " "
+            arg += f"{argmode} "
         if argname:
-            arg += argname + " "
+            arg += f"{argname} "
         if argtype:
-            arg += argtype + " "
+            arg += f"{argtype} "
         if argdef:
-            arg += " DEFAULT " + argdef
+            arg += f" DEFAULT {argdef}"
 
         return arg.strip(" ")
 
@@ -529,9 +539,8 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
         if not status:
             return internal_server_error(errormsg=res)
 
-        sql = "-- Package {}: {}".format(
-            'Function' if self.node_type == 'edbfunc' else 'Procedure',
-            name)
+        sql = f"-- Package {'Function' if self.node_type == 'edbfunc' else 'Procedure'}: {name}"
+
         if body != '':
             sql += "\n\n"
             sql += body
@@ -581,13 +590,11 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
         if sql is None:
             return None
         start = 0
-        start_position = re.search("\s+[is|as]+\s+", sql, flags=re.I)
-
-        if start_position:
+        if start_position := re.search("\s+[is|as]+\s+", sql, flags=re.I):
             start = start_position.start() + 4
 
         try:
-            end_position = [i for i in re.finditer("end", sql, flags=re.I)][-1]
+            end_position = list(re.finditer("end", sql, flags=re.I))[-1]
             end = end_position.start()
         except IndexError:
             return sql[start:].strip("\n")
@@ -671,9 +678,12 @@ class EdbProcModule(CollectionNodeModule):
             'show_system_objects'
         )
         self.pref_show_node = self.browser_preference.register(
-            'node', 'show_node_' + self.node_type,
-            gettext('Package {0}').format(self.label), 'node',
-            self.SHOW_ON_BROWSER, category_label=gettext('Nodes')
+            'node',
+            f'show_node_{self.node_type}',
+            gettext('Package {0}').format(self.label),
+            'node',
+            self.SHOW_ON_BROWSER,
+            category_label=gettext('Nodes'),
         )
 
     @property

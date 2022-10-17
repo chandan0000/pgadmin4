@@ -56,8 +56,10 @@ class AzureProvider(AbsProvider):
             self._tenant_id = os.environ['AZURE_TENANT_ID']
 
         if 'AUTH_TYPE' in os.environ:
-            self._interactive_browser_credential = False \
-                if os.environ['AUTH_TYPE'] == 'azure_cli_credential' else True
+            self._interactive_browser_credential = (
+                os.environ['AUTH_TYPE'] != 'azure_cli_credential'
+            )
+
 
         if 'AZURE_DATABASE_PASSWORD' in os.environ:
             self._database_pass = os.environ['AZURE_DATABASE_PASSWORD']
@@ -67,12 +69,12 @@ class AzureProvider(AbsProvider):
 
         if 'AZURE_CRED_CACHE_LOCATION' in os.environ:
             self._azure_cred_cache_location = \
-                os.environ['AZURE_CRED_CACHE_LOCATION']
+                    os.environ['AZURE_CRED_CACHE_LOCATION']
 
     def init_args(self, parsers):
         """ Create the command line parser for this provider """
         self.parser = parsers. \
-            add_parser('azure',
+                add_parser('azure',
                        help='Azure Database for PostgreSQL',
                        epilog='Credentials are read from '
                               'the environment, '
@@ -88,9 +90,12 @@ class AzureProvider(AbsProvider):
                               '-development-environment?tabs=cmd '
                               'for more information.')
 
-        self.parser.add_argument('--region', default=self._default_region,
-                                 help='name of the Azure location (default: '
-                                      '{})'.format(self._default_region))
+        self.parser.add_argument(
+            '--region',
+            default=self._default_region,
+            help=f'name of the Azure location (default: {self._default_region})',
+        )
+
 
         self.parser.add_argument('--resource-group', required=True,
                                  help='name of the Azure resource group')
@@ -217,12 +222,9 @@ class AzureProvider(AbsProvider):
         group_list = resource_client.resource_groups.list()
         for group in list(group_list):
             if group.name == args.resource_group:
-                debug('Resource group already exist with name: {}...'.format(
-                    args.resource_group))
+                debug(f'Resource group already exist with name: {args.resource_group}...')
                 return group.__dict__
-        debug(
-            'Creating resource group with name: {}...'.format(
-                args.resource_group))
+        debug(f'Creating resource group with name: {args.resource_group}...')
         result = resource_client.resource_groups.create_or_update(
             args.resource_group,
             {"location": args.region})
@@ -242,14 +244,13 @@ class AzureProvider(AbsProvider):
             error(str(e))
 
         if svr is not None:
-            error('Azure Database for PostgreSQL instance {} already '
-                  'exists.'.format(args.name))
+            error(f'Azure Database for PostgreSQL instance {args.name} already exists.')
 
         db_password = self._database_pass if self._database_pass is not None \
-            else args.db_password
+                else args.db_password
 
         # Provision the server and wait for the result
-        debug('Creating Azure instance: {}...'.format(args.name))
+        debug(f'Creating Azure instance: {args.name}...')
 
         try:
             poller = postgresql_client.servers.begin_create(
@@ -283,7 +284,7 @@ class AzureProvider(AbsProvider):
         """ Create a firewall rule on an instance """
         firewall_rules = []
         postgresql_client = self._get_azure_client('postgresql')
-        ip = args.public_ips if args.public_ips else get_my_ip()
+        ip = args.public_ips or get_my_ip()
         ip_list = ip.split(',')
         for ip in ip_list:
             ip = ip.strip()
@@ -293,9 +294,7 @@ class AzureProvider(AbsProvider):
             else:
                 start_ip = ip
                 end_ip = ip
-            name = 'pgacloud_{}_{}_{}'.format(args.name,
-                                              ip.replace('.', '-'),
-                                              get_random_id())
+            name = f"pgacloud_{args.name}_{ip.replace('.', '-')}_{get_random_id()}"
 
             # Provision the rule and wait for completion
             debug('Adding ingress rule for: {0} - {1} ...'.format(start_ip,
@@ -319,7 +318,7 @@ class AzureProvider(AbsProvider):
         postgresql_client = self._get_azure_client('postgresql')
 
         # Delete the server and wait for the result
-        debug('Deleting Azure instance: {}...'.format(args.name))
+        debug(f'Deleting Azure instance: {args.name}...')
         try:
             poller = postgresql_client.servers.begin_delete(
                 args.resource_group,

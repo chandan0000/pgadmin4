@@ -203,12 +203,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         Returns:
 
         """
-        res = []
-        show_internal = False
-        # If show_system_objects is true then no need to hide any sequences.
-        if self.blueprint.show_system_objects:
-            show_internal = True
-
+        show_internal = bool(self.blueprint.show_system_objects)
         SQL = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
             scid=scid,
@@ -233,14 +228,12 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                 status=200
             )
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    scid,
-                    row['name'],
-                    icon=self.node_icon
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], scid, row['name'], icon=self.node_icon
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -264,7 +257,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                                               show_system_objects=True)
             seq = [dep for dep in system_seq
                    if dep['type'] == 'column' and dep['field'] == 'internal']
-            if len(seq) > 0:
+            if seq:
                 continue
 
             # Append the node into the newly created list
@@ -288,13 +281,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
 
         """
         status, res = self._fetch_properties(scid, seid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, scid, seid):
         """
@@ -387,9 +374,8 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             'seqowner',
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         for arg in required_args:
             if arg not in data:
@@ -468,9 +454,8 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
 
         """
         if seid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
+            data = request.form or json.loads(request.data, encoding='utf-8')
+
         else:
             data = {'ids': [seid]}
 
@@ -532,9 +517,8 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         Returns:
 
         """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         sql, name = self.get_SQL(gid, sid, did, data, scid, seid)
         # Most probably this is due to error
         if not isinstance(sql, str):
@@ -582,10 +566,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             try:
                 # comments should be taken as is because if user enters a
                 # json comment it is parsed by loads which should not happen
-                if k in ('comment',):
-                    data[k] = v
-                else:
-                    data[k] = json.loads(v, encoding='utf-8')
+                data[k] = v if k in ('comment',) else json.loads(v, encoding='utf-8')
             except ValueError:
                 data[k] = v
 
@@ -631,10 +612,6 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             seid: Sequence ID
         """
 
-        required_args = [
-            'name'
-        ]
-
         if seid is not None:
             sql = render_template(
                 "/".join([self.template_path, self._PROPERTIES_SQL]),
@@ -651,6 +628,10 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             old_data = self._formatter(old_data, scid, seid)
 
             self._format_privilege_data(data)
+
+            required_args = [
+                'name'
+            ]
 
             # If name is not present with in update data then copy it
             # from old data
@@ -709,7 +690,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             json_resp: json response or plain text response
         """
         json_resp = kwargs.get('json_resp', True)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         sql = render_template(
             "/".join([self.template_path, self._PROPERTIES_SQL]),
@@ -913,12 +894,10 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             )
         )
 
-        if not status:
-            return internal_server_error(errormsg=res)
-
-        return make_json_response(
-            data=res,
-            status=200
+        return (
+            make_json_response(data=res, status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition(action="fetch_objects_to_compare")
@@ -932,7 +911,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: Schema Id
         :return:
         """
-        res = dict()
+        res = {}
         sql = render_template("/".join([self.template_path,
                                         self._NODES_SQL]), scid=scid,
                               schema_diff=True)
@@ -958,24 +937,23 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         did = kwargs.get('did')
         scid = kwargs.get('scid')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
-        target_schema = kwargs.get('target_schema', None)
+        target_schema = kwargs.get('target_schema')
 
         if data:
             if target_schema:
                 data['schema'] = target_schema
             sql, name = self.get_SQL(gid, sid, did, data, scid, oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did,
+                              scid=scid, seid=oid, only_sql=True)
+        elif target_schema:
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, seid=oid,
+                           target_schema=target_schema, json_resp=False)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did,
-                                  scid=scid, seid=oid, only_sql=True)
-            elif target_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, seid=oid,
-                               target_schema=target_schema, json_resp=False)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, seid=oid,
-                               json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, seid=oid,
+                           json_resp=False)
         return sql
 
 

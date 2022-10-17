@@ -262,12 +262,10 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
                               fsid=fsid, conn=self.conn)
         status, res = self.conn.execute_dict(sql)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -285,7 +283,6 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
             fsid: Foreign server ID
         """
 
-        res = []
         sql = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
                               fsid=fsid, conn=self.conn)
@@ -294,14 +291,12 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=r_set)
 
-        for row in r_set['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    fsid,
-                    row['name'],
-                    icon="icon-user_mapping"
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], fsid, row['name'], icon="icon-user_mapping"
+            )
+            for row in r_set['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -357,13 +352,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
             umid: User mapping ID
         """
         status, res = self._fetch_properties(umid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, umid):
         """
@@ -411,9 +400,8 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
             'name'
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         for arg in required_args:
             if arg not in data:
                 return make_json_response(
@@ -488,9 +476,8 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
             umid: User mapping ID
         """
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
         try:
             sql, name = self.get_sql(data=data, fsid=fsid, umid=umid)
             # Most probably this is due to error
@@ -498,16 +485,14 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
                 return sql
             sql = sql.strip('\n').strip(' ')
             status, res = self.conn.execute_scalar(sql)
-            if not status:
-                return internal_server_error(errormsg=res)
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    umid,
-                    fsid,
-                    name,
-                    icon="icon-%s" % self.node_type
+            return (
+                jsonify(
+                    node=self.blueprint.generate_browser_node(
+                        umid, fsid, name, icon=f"icon-{self.node_type}"
+                    )
                 )
+                if status
+                else internal_server_error(errormsg=res)
             )
 
         except Exception as e:
@@ -522,15 +507,9 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         :param request_object: request object
         :return:
         """
-        cascade = False
-        # Below will decide if it's simple drop or drop with cascade call
-        if cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-
+        cascade = cmd == 'delete'
         if umid is None:
-            data = request_object.form if request_object.form else \
-                json.loads(request_object.data, encoding='utf-8')
+            data = request_object.form or json.loads(request_object.data, encoding='utf-8')
         else:
             data = {'ids': [umid]}
 
@@ -550,15 +529,21 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return False, internal_server_error(errormsg=res)
 
-            if not res['rows']:
-                return False, make_json_response(
-                    status=410,
-                    success=0,
-                    errormsg=gettext(
-                        'The specified user mapping could not be found.\n'
-                    )
+            return (
+                (True, res)
+                if res['rows']
+                else (
+                    False,
+                    make_json_response(
+                        status=410,
+                        success=0,
+                        errormsg=gettext(
+                            'The specified user mapping could not be found.\n'
+                        ),
+                    ),
                 )
-            return True, res
+            )
+
         except Exception as e:
             return False, internal_server_error(errormsg=str(e))
 
@@ -577,7 +562,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
 
         """
 
-        umid = kwargs.get('umid', None)
+        umid = kwargs.get('umid')
         only_sql = kwargs.get('only_sql', False)
 
         # get the value of cascade and data
@@ -606,7 +591,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
                         )
                     )
                 status, res = \
-                    self._fetch_specified_user_mapping_properties(umid)
+                        self._fetch_specified_user_mapping_properties(umid)
 
                 if not status:
                     return res
@@ -720,7 +705,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         """
         fsid = kwargs.get('fsid')
         data = kwargs.get('data')
-        umid = kwargs.get('umid', None)
+        umid = kwargs.get('umid')
 
         required_args = [
             'name'
@@ -842,10 +827,11 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
 
         sql = sql_header + sql
 
-        if not json_resp:
-            return sql.strip('\n')
-
-        return ajax_response(response=sql.strip('\n'))
+        return (
+            ajax_response(response=sql.strip('\n'))
+            if json_resp
+            else sql.strip('\n')
+        )
 
     @check_precondition
     def dependents(self, gid, sid, did, fid, fsid, umid):
@@ -898,7 +884,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: Database Id
         :return:
         """
-        res = dict()
+        res = {}
 
         sql = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
@@ -918,8 +904,8 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
                 mapping_name = row['name']
                 if 'srvname' in data:
                     mapping_name = \
-                        row['name'] + PGADMIN_STRING_SEPARATOR + \
-                        data['srvname']
+                            row['name'] + PGADMIN_STRING_SEPARATOR + \
+                            data['srvname']
 
                 res[mapping_name] = data
 
@@ -937,18 +923,17 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         fid = kwargs.get('fdwid')
         fsid = kwargs.get('fsid')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
 
         if data:
             sql, name = self.get_sql(data=data, fsid=fsid, umid=oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did, fid=fid,
+                              fsid=fsid, umid=oid, only_sql=True)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did, fid=fid,
-                                  fsid=fsid, umid=oid, only_sql=True)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, fid=fid, fsid=fsid,
-                               umid=oid, json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, fid=fid, fsid=fsid,
+                           umid=oid, json_resp=False)
         return sql
 
 

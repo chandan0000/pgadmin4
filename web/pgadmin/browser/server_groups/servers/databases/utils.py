@@ -92,7 +92,7 @@ def _check_var_type(var_value, var_name, row):
 
     # Because we save as boolean string in db so it needs
     # conversion
-    if var_value == 'false' or var_value == 'off':
+    if var_value in ['false', 'off']:
         var_value = False
 
     var_dict = {
@@ -116,13 +116,11 @@ def get_attributes_from_db_info(manager, kwargs):
     :return: db_info attributes
     """
 
-    if 'did' in kwargs and kwargs['did'] in manager.db_info:
-
-        datistemplate = manager.db_info[kwargs['did']]['datistemplate'] \
-            if 'datistemplate' in manager.db_info[kwargs['did']] else False
-        datallowconn = manager.db_info[kwargs['did']]['datallowconn'] \
-            if 'datallowconn' in manager.db_info[kwargs['did']] else False
-
-        return datistemplate, datallowconn
-    else:
+    if 'did' not in kwargs or kwargs['did'] not in manager.db_info:
         return False, True
+    datistemplate = manager.db_info[kwargs['did']]['datistemplate'] \
+        if 'datistemplate' in manager.db_info[kwargs['did']] else False
+    datallowconn = manager.db_info[kwargs['did']]['datallowconn'] \
+        if 'datallowconn' in manager.db_info[kwargs['did']] else False
+
+    return datistemplate, datallowconn

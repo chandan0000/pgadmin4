@@ -17,7 +17,7 @@ from regression.python_test_utils.test_utils import get_db_connection
 
 file_name = os.path.basename(__file__)
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-with open(CURRENT_PATH + "/fts_templates_test_data.json") as data_file:
+with open(f"{CURRENT_PATH}/fts_templates_test_data.json") as data_file:
     test_cases = json.load(data_file)
 
 
@@ -33,13 +33,11 @@ def create_fts_template(server, db_name, schema_name, fts_temp_name):
                                        server['sslmode'])
         pg_cursor = connection.cursor()
 
-        query = "DROP TEXT SEARCH TEMPLATE IF EXISTS " + schema_name + "." + \
-                fts_temp_name
+        query = f"DROP TEXT SEARCH TEMPLATE IF EXISTS {schema_name}.{fts_temp_name}"
         pg_cursor.execute(query)
 
-        query = "CREATE TEXT SEARCH TEMPLATE " + schema_name + "." + \
-                fts_temp_name + \
-                "(INIT=dispell_init, LEXIZE=dispell_lexize)"
+        query = f"CREATE TEXT SEARCH TEMPLATE {schema_name}.{fts_temp_name}(INIT=dispell_init, LEXIZE=dispell_lexize)"
+
         pg_cursor.execute(query)
         connection.commit()
 
@@ -48,10 +46,7 @@ def create_fts_template(server, db_name, schema_name, fts_temp_name):
                           "tmplname = '%s' order by oid ASC limit 1" %
                           fts_temp_name)
 
-        oid = pg_cursor.fetchone()
-        fts_temp_id = ''
-        if oid:
-            fts_temp_id = oid[0]
+        fts_temp_id = oid[0] if (oid := pg_cursor.fetchone()) else ''
         connection.close()
         return fts_temp_id
     except Exception:
@@ -110,7 +105,9 @@ def delete_fts_template(server, db_name, schema_name, fts_template_name):
                                    server['port'],
                                    server['sslmode'])
     pg_cursor = connection.cursor()
-    pg_cursor.execute("DROP TEXT SEARCH TEMPLATE %s.%s" % (
-        schema_name, fts_template_name))
+    pg_cursor.execute(
+        f"DROP TEXT SEARCH TEMPLATE {schema_name}.{fts_template_name}"
+    )
+
     connection.commit()
     connection.close()

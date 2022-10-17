@@ -31,7 +31,7 @@ class ProcedureAddTestCase(BaseTestGenerator):
         self = funcs_utils.set_up(self)
 
         if self.server_type == "pg" and\
-                self.server_version < 110000:
+                    self.server_version < 110000:
             message = "Procedures are not supported by PG < 110000."
             self.skipTest(message)
 
@@ -41,39 +41,32 @@ class ProcedureAddTestCase(BaseTestGenerator):
                 {
                     "grantee": db_user,
                     "grantor": db_user,
-                    "privileges":
-                        [
-                            {
-                                "privilege_type": "X",
-                                "privilege": True,
-                                "with_grant": True
-                            }
-                        ]
+                    "privileges": [
+                        {
+                            "privilege_type": "X",
+                            "privilege": True,
+                            "with_grant": True,
+                        }
+                    ],
                 }
             ],
             "arguments": [],
             "funcowner": db_user,
             "lanname": "sql",
-            "name": "test_pg_11_proc",
             "options": [],
             "proleakproof": True,
             "pronamespace": 2200,
             "prosecdef": True,
-            "prosrc": "BEGIN RAISE EXCEPTION 'command % is disabled',"
-                      " tg_tag; END;",
+            "prosrc": "BEGIN RAISE EXCEPTION 'command % is disabled', tg_tag; END;",
             "seclabels": [],
             "variables": [
-                {
-                    "name": "enable_sort",
-                    "value": True
-                }, {
-                    "name": "search_path",
-                    "value": "public, pg_temp"
-                }
-            ]
+                {"name": "enable_sort", "value": True},
+                {"name": "search_path", "value": "public, pg_temp"},
+            ],
+            "name": f"test_proc_add_{str(uuid.uuid4())[1:8]}",
         }
 
-        data["name"] = "test_proc_add_%s" % str(uuid.uuid4())[1:8]
+
         if self.server_type == 'pg':
             data['prosrc'] = 'SELECT 1;'
         if self.schema_id:

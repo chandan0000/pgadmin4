@@ -37,14 +37,14 @@ class ProcedureExecSQLTestCase(BaseTestGenerator):
         self = funcs_utils.set_up(self)
 
         if self.server_type == "pg" and\
-                self.server_version < 110000:
+                    self.server_version < 110000:
             message = "Procedures are not supported by PG < 110000."
             self.skipTest(message)
 
         if self.with_args and self.server_version >= 140000:
             self.expected_sql = "{0} {1}.{2}( <IN arg1 bigint> )"
 
-        proc_name = "test_procedure_exec_sql_%s" % str(uuid.uuid4())[1:8]
+        proc_name = f"test_procedure_exec_sql_{str(uuid.uuid4())[1:8]}"
         proc_info = funcs_utils.create_procedure(
             self.server, self.db_name, self.schema_name, proc_name,
             self.server_type, self.server_version, self.with_args, self.args)

@@ -12,6 +12,7 @@ a webserver, this will provide the WSGI interface, otherwise, we're going
 to start a web server."""
 
 
+
 import sys
 
 if sys.version_info < (3, 4):
@@ -28,10 +29,7 @@ if sys.path[0] != os.path.dirname(os.path.realpath(__file__)):
 
 # Grab the SERVER_MODE if it's been set by the runtime
 if 'PGADMIN_SERVER_MODE' in os.environ:
-    if os.environ['PGADMIN_SERVER_MODE'] == 'OFF':
-        builtins.SERVER_MODE = False
-    else:
-        builtins.SERVER_MODE = True
+    builtins.SERVER_MODE = os.environ['PGADMIN_SERVER_MODE'] != 'OFF'
 else:
     builtins.SERVER_MODE = None
 
@@ -64,14 +62,12 @@ class ReverseProxied(object):
             pass
 
     def __call__(self, environ, start_response):
-        script_name = environ.get("HTTP_X_SCRIPT_NAME", "")
-        if script_name:
+        if script_name := environ.get("HTTP_X_SCRIPT_NAME", ""):
             environ["SCRIPT_NAME"] = script_name
             path_info = environ["PATH_INFO"]
             if path_info.startswith(script_name):
                 environ["PATH_INFO"] = path_info[len(script_name):]
-        scheme = environ.get("HTTP_X_SCHEME", "")
-        if scheme:
+        if scheme := environ.get("HTTP_X_SCHEME", ""):
             environ["wsgi.url_scheme"] = scheme
         return self.app(environ, start_response)
 
@@ -81,18 +77,14 @@ class ReverseProxied(object):
 ##########################################################################
 config.SETTINGS_SCHEMA_VERSION = SCHEMA_VERSION
 
-# Check if the database exists. If it does not, create it.
-setup_db_required = False
-if not os.path.isfile(config.SQLITE_PATH):
-    setup_db_required = True
-
+setup_db_required = not os.path.isfile(config.SQLITE_PATH)
 ##########################################################################
 # Create the app and configure it. It is created outside main so that
 # it can be imported
 ##########################################################################
 app = create_app()
 app.debug = False
-app.config['sessions'] = dict()
+app.config['sessions'] = {}
 
 if setup_db_required:
     setup.setup_db(app)
@@ -107,8 +99,7 @@ if len(config.AUTHENTICATION_SOURCES) > 0:
     # mistakenly keeps that the first option.
     auth_source = [x for x in config.AUTHENTICATION_SOURCES
                    if x != INTERNAL]
-    app.PGADMIN_EXTERNAL_AUTH_SOURCE = auth_source[0] \
-        if len(auth_source) > 0 else INTERNAL
+    app.PGADMIN_EXTERNAL_AUTH_SOURCE = auth_source[0] if auth_source else INTERNAL
 else:
     app.PGADMIN_EXTERNAL_AUTH_SOURCE = INTERNAL
 
@@ -137,7 +128,7 @@ else:
 # Set the key if appropriate
 if 'PGADMIN_INT_KEY' in os.environ:
     app.PGADMIN_INT_KEY = os.environ['PGADMIN_INT_KEY']
-    app.logger.debug("Desktop security key: %s" % app.PGADMIN_INT_KEY)
+    app.logger.debug(f"Desktop security key: {app.PGADMIN_INT_KEY}")
     app.PGADMIN_RUNTIME = True
 else:
     app.PGADMIN_INT_KEY = ''

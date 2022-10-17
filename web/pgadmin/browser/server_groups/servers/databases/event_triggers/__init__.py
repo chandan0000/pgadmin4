@@ -229,12 +229,10 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                                         self._PROPERTIES_SQL]))
         status, res = self.conn.execute_dict(sql)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -252,20 +250,17 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         Returns:
 
         """
-        result = []
         sql = render_template("/".join([self.template_path, self._NODES_SQL]))
         status, res = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=res)
 
-        for row in res['rows']:
-            result.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    did,
-                    row['name'],
-                    self.node_icon
-                ))
+        result = [
+            self.blueprint.generate_browser_node(
+                row['oid'], did, row['name'], self.node_icon
+            )
+            for row in res['rows']
+        ]
 
         return make_json_response(
             data=result,
@@ -313,10 +308,7 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         if 'seclabels' in result and result['seclabels'] is not None:
             for sec in result['seclabels']:
                 sec = re.search(r'([^=]+)=(.*$)', sec)
-                seclabels.append({
-                    'provider': sec.group(1),
-                    'label': sec.group(2)
-                })
+                seclabels.append({'provider': sec[1], 'label': sec[2]})
 
         result['seclabels'] = seclabels
         return result
@@ -337,13 +329,7 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
 
         """
         status, res = self._fetch_properties(did, etid)
-        if not status:
-            return res
-
-        return ajax_response(
-            response=res,
-            status=200
-        )
+        return ajax_response(response=res, status=200) if status else res
 
     def _fetch_properties(self, did, etid):
         """
@@ -386,9 +372,8 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         Returns:
 
         """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         required_args = {
             'name': 'Name',
@@ -397,11 +382,9 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
             'enabled': 'Enabled status',
             'eventname': 'Events'
         }
-        err = []
-        for arg in required_args:
-            if arg not in data:
-                err.append(required_args.get(arg, arg))
-        if err:
+        if err := [
+            required_args.get(arg, arg) for arg in required_args if arg not in data
+        ]:
             return make_json_response(
                 status=400,
                 success=0,
@@ -431,17 +414,16 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                 data=data
             )
             status, etid = self.conn.execute_scalar(sql)
-            if not status:
-                return internal_server_error(errormsg=etid)
-
-            return jsonify(
-                node=self.blueprint.generate_browser_node(
-                    etid,
-                    did,
-                    data['name'],
-                    self.node_icon
+            return (
+                jsonify(
+                    node=self.blueprint.generate_browser_node(
+                        etid, did, data['name'], self.node_icon
+                    )
                 )
+                if status
+                else internal_server_error(errormsg=etid)
             )
+
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
@@ -460,9 +442,8 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         Returns:
 
         """
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         try:
             sql = self.get_sql(data, etid)
@@ -470,26 +451,7 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
             if not isinstance(sql, str):
                 return sql
 
-            if sql != "":
-                status, res = self.conn.execute_scalar(sql)
-                if not status:
-                    return internal_server_error(errormsg=res)
-
-                sql = render_template(
-                    "/".join([self.template_path, self._OID_SQL]),
-                    data=data
-                )
-                status, etid = self.conn.execute_scalar(sql)
-
-                return jsonify(
-                    node=self.blueprint.generate_browser_node(
-                        etid,
-                        did,
-                        data['name'],
-                        self.node_icon
-                    )
-                )
-            else:
+            if sql == "":
                 return make_json_response(
                     success=1,
                     info="Nothing to update",
@@ -501,6 +463,24 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                     }
                 )
 
+            status, res = self.conn.execute_scalar(sql)
+            if not status:
+                return internal_server_error(errormsg=res)
+
+            sql = render_template(
+                "/".join([self.template_path, self._OID_SQL]),
+                data=data
+            )
+            status, etid = self.conn.execute_scalar(sql)
+
+            return jsonify(
+                node=self.blueprint.generate_browser_node(
+                    etid,
+                    did,
+                    data['name'],
+                    self.node_icon
+                )
+            )
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
@@ -513,15 +493,9 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         :param request_object: request object
         :return:
         """
-        cascade = False
-        # Below will decide if it's simple drop or drop with cascade call
-        if cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-
+        cascade = cmd == 'delete'
         if etid is None:
-            data = request_object.form if request_object.form else \
-                json.loads(request_object.data, encoding='utf-8')
+            data = request_object.form or json.loads(request_object.data, encoding='utf-8')
         else:
             data = {'ids': [etid]}
 
@@ -637,10 +611,6 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         Returns:
 
         """
-        required_args = [
-            'name'
-        ]
-
         if etid is not None:
             sql = render_template(
                 "/".join([self.template_path, self._PROPERTIES_SQL]),
@@ -657,6 +627,10 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
 
             old_data = res['rows'][0]
             old_data = self._formatter(old_data)
+
+            required_args = [
+                'name'
+            ]
 
             for arg in required_args:
                 if arg not in data:
@@ -765,10 +739,7 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         sql = sql_header + sql
         sql = re.sub('\n{2,}', '\n\n', sql)
 
-        if not json_resp:
-            return sql
-
-        return ajax_response(response=sql)
+        return ajax_response(response=sql) if json_resp else sql
 
     @check_precondition
     def get_event_funcs(self, gid, sid, did, etid=None):
@@ -792,10 +763,11 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         status, rest = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=rest)
-        for row in rest['rows']:
-            res.append(
-                {'label': row['tfname'], 'value': row['tfname']}
-            )
+        res.extend(
+            {'label': row['tfname'], 'value': row['tfname']}
+            for row in rest['rows']
+        )
+
         return make_json_response(
             data=res,
             status=200
@@ -847,7 +819,7 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: Database Id
         :return:
         """
-        res = dict()
+        res = {}
 
         sql = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
@@ -874,18 +846,17 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         sid = kwargs.get('sid')
         did = kwargs.get('did')
         oid = kwargs.get('oid')
-        data = kwargs.get('data', None)
+        data = kwargs.get('data')
         drop_sql = kwargs.get('drop_sql', False)
 
         if data:
             sql = self.get_sql(data=data, etid=oid)
+        elif drop_sql:
+            sql = self.delete(gid=gid, sid=sid, did=did,
+                              etid=oid, only_sql=True)
         else:
-            if drop_sql:
-                sql = self.delete(gid=gid, sid=sid, did=did,
-                                  etid=oid, only_sql=True)
-            else:
-                sql = self.sql(gid=gid, sid=sid, did=did, etid=oid,
-                               json_resp=False)
+            sql = self.sql(gid=gid, sid=sid, did=did, etid=oid,
+                           json_resp=False)
         return sql
 
 

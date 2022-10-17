@@ -76,32 +76,43 @@ class FunctionDeleteTestCase(BaseTestGenerator):
     ]
 
     def delete_function(self, func_id):
-        if hasattr(self, 'without_functions_id'):
-
-            response = self.tester.delete(
-                self.url + str(utils.SERVER_GROUP) + '/' +
-                str(self.server_id) + '/' +
-                str(self.db_id) + '/' +
-                str(self.schema_id) + '/' + str(func_id),
+        return (
+            self.tester.delete(
+                self.url
+                + str(utils.SERVER_GROUP)
+                + '/'
+                + str(self.server_id)
+                + '/'
+                + str(self.db_id)
+                + '/'
+                + str(self.schema_id)
+                + '/'
+                + str(func_id),
                 data=json.dumps(self.test_data),
-                content_type='html/json'
+                content_type='html/json',
             )
-        else:
-            response = self.tester.delete(
-                self.url + str(utils.SERVER_GROUP) + '/' +
-                str(self.server_id) + '/' +
-                str(self.db_id) + '/' +
-                str(self.schema_id) + '/' + str(func_id),
-                content_type='html/json'
+            if hasattr(self, 'without_functions_id')
+            else self.tester.delete(
+                self.url
+                + str(utils.SERVER_GROUP)
+                + '/'
+                + str(self.server_id)
+                + '/'
+                + str(self.db_id)
+                + '/'
+                + str(self.schema_id)
+                + '/'
+                + str(func_id),
+                content_type='html/json',
             )
-        return response
+        )
 
     def runTest(self):
         """ This function will delete function under database node. """
         super(FunctionDeleteTestCase, self).setUp()
         self = funcs_utils.set_up(self)
 
-        func_name = "test_function_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name = f"test_function_delete_{str(uuid.uuid4())[1:8]}"
         function_info = funcs_utils.create_function(
             self.server, self.db_name, self.schema_name, func_name)
 

@@ -15,10 +15,8 @@ from pgadmin.utils.dynamic_registry import create_registry_metaclass
 
 @classmethod
 def load_modules(cls, app=None):
-    submodules = []
     from . import internal as module
-    submodules.append(module)
-
+    submodules = [module]
     from . import kerberos as module
     submodules.append(module)
 

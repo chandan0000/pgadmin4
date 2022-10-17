@@ -56,9 +56,12 @@ class RdsProvider(AbsProvider):
                                                 'from ~/.aws/config and will '
                                                 'fall back to us-east-1 if '
                                                 'not present.')
-        self.parser.add_argument('--region', default=self._default_region,
-                                 help='name of the AWS region (default: {})'
-                                 .format(self._default_region))
+        self.parser.add_argument(
+            '--region',
+            default=self._default_region,
+            help=f'name of the AWS region (default: {self._default_region})',
+        )
+
 
         # Create the command sub-parser
         parsers = self.parser.add_subparsers(help='RDS commands',
@@ -138,21 +141,19 @@ class RdsProvider(AbsProvider):
     def _create_security_group(self, args):
         """ Create a new security group for the instance """
         ec2 = self._get_aws_client('ec2', args)
-        ip = args.public_ip if args.public_ip else get_my_ip()
+        ip = args.public_ip or get_my_ip()
         ip = ip.split(',')
 
         # Deploy the security group
         try:
-            name = 'pgacloud_{}_{}_{}'.format(args.name,
-                                              ip[0].replace('.', '-'),
-                                              get_random_id())
-            debug('Creating security group: {}...'.format(name))
-            output({'Creating': 'Creating security group: {}...'.format(name)})
+            name = f"pgacloud_{args.name}_{ip[0].replace('.', '-')}_{get_random_id()}"
+            debug(f'Creating security group: {name}...')
+            output({'Creating': f'Creating security group: {name}...'})
             response = ec2.create_security_group(
-                Description='Inbound access for {} to RDS instance {}'.format(
-                    ip[0], args.name),
-                GroupName=name
+                Description=f'Inbound access for {ip[0]} to RDS instance {args.name}',
+                GroupName=name,
             )
+
         except Exception as e:
             error(str(e))
 
@@ -161,20 +162,13 @@ class RdsProvider(AbsProvider):
     def _add_ingress_rule(self, args, security_group):
         """ Add a local -> PostgreSQL ingress rule to a security group """
         ec2 = self._get_aws_client('ec2', args)
-        ip = args.public_ip if args.public_ip else\
-            '{}/32'.format(get_my_ip())
+        ip = args.public_ip or f'{get_my_ip()}/32'
         port = args.db_port or 5432
-        ip_ranges = []
-
         ip = ip.split(',')
-        for i in ip:
-            ip_ranges.append({
-                'CidrIp': i,
-                'Description': 'pgcloud client {}'.format(i)
-            })
+        ip_ranges = [{'CidrIp': i, 'Description': f'pgcloud client {i}'} for i in ip]
         try:
-            output({'Adding': 'Adding ingress rule for: {}...'.format(ip)})
-            debug('Adding ingress rule for: {}...'.format(ip))
+            output({'Adding': f'Adding ingress rule for: {ip}...'})
+            debug(f'Adding ingress rule for: {ip}...')
             ec2.authorize_security_group_ingress(
                 GroupId=security_group,
                 IpPermissions=[
@@ -195,10 +189,10 @@ class RdsProvider(AbsProvider):
         rds = self._get_aws_client('rds', args)
 
         db_password = self._database_pass if self._database_pass is not None\
-            else args.db_password
+                else args.db_password
 
         try:
-            debug('Creating RDS instance: {}...'.format(args.name))
+            debug(f'Creating RDS instance: {args.name}...')
             rds.create_db_instance(DBInstanceIdentifier=args.name,
                                    AllocatedStorage=args.storage_size,
                                    DBName=args.db_name,
@@ -223,7 +217,7 @@ class RdsProvider(AbsProvider):
                 ec2.delete_security_group(GroupId=security_group)
             except Exception:
                 pass
-            error('RDS instance {} already exists.'.format(args.name))
+            error(f'RDS instance {args.name} already exists.')
         except Exception as e:
             try:
                 debug(DEL_SEC_GROUP_MSG.format(security_group))
@@ -241,7 +235,7 @@ class RdsProvider(AbsProvider):
             db_instance = response['DBInstances'][0]
             status = db_instance['DBInstanceStatus']
 
-            if status != 'creating' and status != 'backing-up':
+            if status not in ['creating', 'backing-up']:
                 running = False
 
             if running:
@@ -253,7 +247,7 @@ class RdsProvider(AbsProvider):
         """ Delete an RDS instance """
         rds = self._get_aws_client('rds', args)
 
-        debug('Deleting RDS instance: {}...'.format(name))
+        debug(f'Deleting RDS instance: {name}...')
         try:
             rds.delete_db_instance(
                 DBInstanceIdentifier=name,
@@ -278,7 +272,7 @@ class RdsProvider(AbsProvider):
         """ Delete a security group """
         ec2 = self._get_aws_client('ec2', args)
 
-        debug('Deleting security group: {}...'.format(id))
+        debug(f'Deleting security group: {id}...')
         try:
             ec2.delete_security_group(
                 GroupId=id

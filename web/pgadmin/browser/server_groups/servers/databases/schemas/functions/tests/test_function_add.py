@@ -79,14 +79,19 @@ class FunctionAddTestCase(BaseTestGenerator):
     ]
 
     def create_function(self, data):
-        response = self.tester.post(
-            self.url + str(utils.SERVER_GROUP) + '/' +
-            str(self.server_id) + '/' + str(self.db_id) +
-            '/' + str(self.schema_id) + '/',
+        return self.tester.post(
+            self.url
+            + str(utils.SERVER_GROUP)
+            + '/'
+            + str(self.server_id)
+            + '/'
+            + str(self.db_id)
+            + '/'
+            + str(self.schema_id)
+            + '/',
             data=json.dumps(data),
-            content_type='html/json'
+            content_type='html/json',
         )
-        return response
 
     def runTest(self):
         """ This function will add function under schema node. """
@@ -127,14 +132,14 @@ class FunctionAddTestCase(BaseTestGenerator):
             }]
         }
 
-        data["name"] = "test_function_add_%s" % str(uuid.uuid4())[1:8]
+        data["name"] = f"test_function_add_{str(uuid.uuid4())[1:8]}"
         if self.schema_id:
             data['pronamespace'] = self.schema_id
         else:
             self.schema_id = data['pronamespace']
 
         if self.server_version >= 120000:
-            support_function_name = 'supportfunc_%s' % str(uuid.uuid4())[1:8]
+            support_function_name = f'supportfunc_{str(uuid.uuid4())[1:8]}'
             funcs_utils.create_support_internal_function(
                 self.server,
                 self.db_name,

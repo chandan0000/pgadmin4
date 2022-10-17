@@ -30,11 +30,11 @@ class FunctionDeleteTestCase(BaseTestGenerator):
         super(FunctionDeleteTestCase, self).setUp()
         self = funcs_utils.set_up(self)
 
-        func_name = "test_function_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name = f"test_function_delete_{str(uuid.uuid4())[1:8]}"
         function_info = funcs_utils.create_function(
             self.server, self.db_name, self.schema_name, func_name)
 
-        func_name_1 = "test_function_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name_1 = f"test_function_delete_{str(uuid.uuid4())[1:8]}"
         function_info_1 = funcs_utils.create_function(
             self.server, self.db_name, self.schema_name, func_name_1)
 

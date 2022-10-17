@@ -36,9 +36,9 @@ class PackageEDBFuncsGetTestCase(BaseTestGenerator):
         self.schema_id = schema_info["schema_id"]
         self.schema_name = schema_info["schema_name"]
         self.db_name = parent_node_dict["database"][-1]["db_name"]
-        self.pkg_name = "pkg_%s" % str(uuid.uuid4())[1:8]
-        self.proc_name = "proc_%s" % str(uuid.uuid4())[1:8]
-        self.func_name = "func_%s" % str(uuid.uuid4())[1:8]
+        self.pkg_name = f"pkg_{str(uuid.uuid4())[1:8]}"
+        self.proc_name = f"proc_{str(uuid.uuid4())[1:8]}"
+        self.func_name = f"func_{str(uuid.uuid4())[1:8]}"
         self.server_id = schema_info["server_id"]
         self.db_id = schema_info["db_id"]
 
@@ -92,7 +92,7 @@ END %s;""" % (self.schema_name, self.pkg_name, self.proc_name,
                                                  self.server_id,
                                                  self.db_id)
 
-        if not db_con["info"] == "Database connected.":
+        if db_con["info"] != "Database connected.":
             raise Exception("Could not connect to database.")
 
         schema_response = schema_utils.verify_schemas(self.server,
@@ -113,8 +113,7 @@ END %s;""" % (self.schema_name, self.pkg_name, self.proc_name,
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response_data['data']), 1)
-        self.assertEqual(response_data['data'][0]['label'],
-                         self.func_name + '()')
+        self.assertEqual(response_data['data'][0]['label'], f'{self.func_name}()')
         self.assertEqual(response_data['data'][0]['_type'], 'edbfunc')
 
         # Fetch Package procedure

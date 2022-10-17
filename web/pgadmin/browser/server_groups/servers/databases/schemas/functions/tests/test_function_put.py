@@ -129,20 +129,26 @@ class FunctionPutTestCase(BaseTestGenerator):
     ]
 
     def update_function(self, func_id, data):
-        put_response = self.tester.put(
-            self.url + str(utils.SERVER_GROUP) +
-            '/' + str(self.server_id) + '/' + str(self.db_id) + '/' +
-            str(self.schema_id) + '/' +
-            str(func_id),
+        return self.tester.put(
+            self.url
+            + str(utils.SERVER_GROUP)
+            + '/'
+            + str(self.server_id)
+            + '/'
+            + str(self.db_id)
+            + '/'
+            + str(self.schema_id)
+            + '/'
+            + str(func_id),
             data=json.dumps(data),
-            follow_redirects=True)
-        return put_response
+            follow_redirects=True,
+        )
 
     def runTest(self):
         """ This function will update function under database node. """
         super(FunctionPutTestCase, self).setUp()
         self = funcs_utils.set_up(self)
-        func_name = "test_event_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name = f"test_event_delete_{str(uuid.uuid4())[1:8]}"
 
         if hasattr(self, "is_add_argument") and self.is_add_argument:
             args = "IN test integer DEFAULT 1"
@@ -162,7 +168,7 @@ class FunctionPutTestCase(BaseTestGenerator):
             data['arguments'] = self.test_data['arguments']
 
         if self.server_version >= 120000:
-            support_function_name = 'supportfunc_%s' % str(uuid.uuid4())[1:8]
+            support_function_name = f'supportfunc_{str(uuid.uuid4())[1:8]}'
             funcs_utils.create_support_internal_function(
                 self.server,
                 self.db_name,

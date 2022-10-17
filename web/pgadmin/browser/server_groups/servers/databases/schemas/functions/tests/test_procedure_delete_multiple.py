@@ -31,16 +31,16 @@ class procedureDeleteMultipleTestCase(BaseTestGenerator):
         self = funcs_utils.set_up(self)
 
         if self.server_type == "pg" and\
-                self.server_version < 110000:
+                    self.server_version < 110000:
             message = "Procedures are not supported by PG < 110000."
             self.skipTest(message)
 
-        func_name = "test_procedure_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name = f"test_procedure_delete_{str(uuid.uuid4())[1:8]}"
         proc_info = funcs_utils.create_procedure(
             self.server, self.db_name, self.schema_name, func_name,
             self.server_type, self.server_version)
 
-        func_name_1 = "test_procedure_delete_%s" % str(uuid.uuid4())[1:8]
+        func_name_1 = f"test_procedure_delete_{str(uuid.uuid4())[1:8]}"
         proc_info_1 = funcs_utils.create_procedure(
             self.server, self.db_name, self.schema_name, func_name_1,
             self.server_type, self.server_version)

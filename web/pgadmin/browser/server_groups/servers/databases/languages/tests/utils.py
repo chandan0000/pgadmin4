@@ -16,7 +16,7 @@ from regression.python_test_utils.test_utils import get_db_connection
 from regression.python_test_utils import test_utils as utils
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-with open(CURRENT_PATH + "/language_test_data.json") as data_file:
+with open(f"{CURRENT_PATH}/language_test_data.json") as data_file:
     test_cases = json.load(data_file)
 
 

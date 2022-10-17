@@ -214,11 +214,10 @@ class EdbVarView(PGChildNodeView, DataTypeReader):
                               pkgid=pkgid)
         status, res = self.conn.execute_dict(SQL)
 
-        if not status:
-            return internal_server_error(errormsg=res)
-        return ajax_response(
-            response=res['rows'],
-            status=200
+        return (
+            ajax_response(response=res['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition
@@ -234,7 +233,6 @@ class EdbVarView(PGChildNodeView, DataTypeReader):
             pkgid: Package Id
         """
 
-        res = []
         SQL = render_template(
             "/".join([self.sql_template_path, self._NODE_SQL]),
             pkgid=pkgid
@@ -244,14 +242,12 @@ class EdbVarView(PGChildNodeView, DataTypeReader):
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            res.append(
-                self.blueprint.generate_browser_node(
-                    row['oid'],
-                    pkgid,
-                    row['name'],
-                    icon="icon-" + self.node_type
-                ))
+        res = [
+            self.blueprint.generate_browser_node(
+                row['oid'], pkgid, row['name'], icon=f"icon-{self.node_type}"
+            )
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -319,9 +315,8 @@ class EdbVarView(PGChildNodeView, DataTypeReader):
 
         var = res['rows'][0]
 
-        sql = "-- Package Variable: {}".format(var['name'])
-        sql += "\n\n"
-        sql += "{} {};".format(var['name'], var['datatype'])
+        sql = f"-- Package Variable: {var['name']}" + "\n\n"
+        sql += f"{var['name']} {var['datatype']};"
 
         return ajax_response(response=sql)
 

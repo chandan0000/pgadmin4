@@ -83,23 +83,22 @@ class BrowserModule(PgAdminModule):
     LABEL = gettext('Browser')
 
     def get_own_stylesheets(self):
-        stylesheets = []
         context_menu_file = 'vendor/jQuery-contextMenu/' \
-                            'jquery.contextMenu.min.css'
+                                'jquery.contextMenu.min.css'
         wcdocker_file = 'vendor/wcDocker/wcDocker.min.css'
         if current_app.debug:
             context_menu_file = 'vendor/jQuery-contextMenu/' \
-                                'jquery.contextMenu.css'
+                                    'jquery.contextMenu.css'
             wcdocker_file = 'vendor/wcDocker/wcDocker.css'
-        # Add browser stylesheets
-        for (endpoint, filename) in [
-            ('static', 'vendor/codemirror/codemirror.css'),
-            ('static', 'vendor/codemirror/addon/dialog/dialog.css'),
-            ('static', context_menu_file),
-            ('static', wcdocker_file)
-        ]:
-            stylesheets.append(url_for(endpoint, filename=filename))
-        return stylesheets
+        return [
+            url_for(endpoint, filename=filename)
+            for endpoint, filename in [
+                ('static', 'vendor/codemirror/codemirror.css'),
+                ('static', 'vendor/codemirror/addon/dialog/dialog.css'),
+                ('static', context_menu_file),
+                ('static', wcdocker_file),
+            ]
+        ]
 
     def get_own_menuitems(self):
         menus = {
@@ -267,9 +266,7 @@ class BrowserPluginModule(PgAdminModule, metaclass=ABCMeta):
         self.pref_show_node = None
 
         super(BrowserPluginModule, self).__init__(
-            "NODE-%s" % self.node_type,
-            import_name,
-            **kwargs
+            f"NODE-{self.node_type}", import_name, **kwargs
         )
 
     @property
@@ -312,15 +309,16 @@ class BrowserPluginModule(PgAdminModule, metaclass=ABCMeta):
         browser tree.
         """
         obj = {
-            "id": "%s_%s" % (node_type, node_id),
+            "id": f"{node_type}_{node_id}",
             "label": label,
             "icon": icon,
             "inode": inode,
             "_type": node_type,
             "_id": node_id,
             "_pid": parent_id,
-            "module": PGADMIN_NODE % node_type
+            "module": PGADMIN_NODE % node_type,
         }
+
         for key in kwargs:
             obj.setdefault(key, kwargs[key])
         return obj
@@ -420,9 +418,12 @@ class BrowserPluginModule(PgAdminModule, metaclass=ABCMeta):
             'display', 'show_system_objects'
         )
         self.pref_show_node = self.browser_preference.preference(
-            'node', 'show_node_' + self.node_type,
-            self.label, 'boolean', self.SHOW_ON_BROWSER,
-            category_label=gettext('Nodes')
+            'node',
+            f'show_node_{self.node_type}',
+            self.label,
+            'boolean',
+            self.SHOW_ON_BROWSER,
+            category_label=gettext('Nodes'),
         )
 
 
@@ -446,7 +447,6 @@ def _get_supported_browser():
         browser_name = 'Chrome'
     elif browser == 'firefox' and version < 65:
         browser_name = 'Firefox'
-    # comparing EdgeHTML engine version
     elif browser == 'edge' and version < 18:
         browser_name = 'Edge'
         # browser version returned by edge browser is actual EdgeHTML
@@ -462,8 +462,7 @@ def _get_supported_browser():
         browser_name = 'Safari'
     elif browser == 'msie':
         browser_name = 'Internet Explorer'
-    elif browser != 'chrome' and browser != 'firefox' and \
-            browser != 'edge' and browser != 'safari':
+    elif browser not in ['chrome', 'firefox', 'edge', 'safari']:
         browser_name = browser
         browser_known = False
 
@@ -476,8 +475,8 @@ def check_browser_upgrade():
     :return:
     """
     data = None
-    url = '%s?version=%s' % (config.UPGRADE_CHECK_URL, config.APP_VERSION)
-    current_app.logger.debug('Checking version data at: %s' % url)
+    url = f'{config.UPGRADE_CHECK_URL}?version={config.APP_VERSION}'
+    current_app.logger.debug(f'Checking version data at: {url}')
 
     try:
         # Do not wait for more than 5 seconds.
@@ -493,7 +492,7 @@ def check_browser_upgrade():
 
         if response.getcode() == 200:
             data = json.loads(response.read().decode('utf-8'))
-            current_app.logger.debug('Response data: %s' % data)
+            current_app.logger.debug(f'Response data: {data}')
     except Exception:
         current_app.logger.exception('Exception when checking for update')
 
@@ -501,12 +500,13 @@ def check_browser_upgrade():
         data[config.UPGRADE_CHECK_KEY]['version_int'] > \
             config.APP_VERSION_INT:
         msg = render_template(
-            MODULE_NAME + "/upgrade.html",
+            f"{MODULE_NAME}/upgrade.html",
             current_version=config.APP_VERSION,
             upgrade_version=data[config.UPGRADE_CHECK_KEY]['version'],
             product_name=config.APP_NAME,
-            download_url=data[config.UPGRADE_CHECK_KEY]['download_url']
+            download_url=data[config.UPGRADE_CHECK_KEY]['download_url'],
         )
+
 
         flash(msg, 'warning')
 
@@ -537,11 +537,12 @@ def index():
 
         if browser_name is not None:
             msg = render_template(
-                MODULE_NAME + "/browser.html",
+                f"{MODULE_NAME}/browser.html",
                 version=version,
                 browser=browser_name,
-                known=browser_known
+                known=browser_known,
             )
+
 
             flash(msg, 'warning')
 
@@ -568,31 +569,31 @@ def index():
         if not config.MASTER_PASSWORD_REQUIRED and 'pass_enc_key' in session:
             session['allow_save_password'] = False
 
-    response = Response(render_template(
-        MODULE_NAME + "/index.html",
-        username=current_user.username,
-        auth_source=auth_source,
-        is_admin=current_user.has_role("Administrator"),
-        logout_url=get_logout_url(),
-        requirejs=True,
-        basejs=True,
-        mfa_enabled=is_mfa_enabled(),
-        login_url=login_url,
-        _=gettext,
-        auth_only_internal=auth_only_internal,
-    ))
+    response = Response(
+        render_template(
+            f"{MODULE_NAME}/index.html",
+            username=current_user.username,
+            auth_source=auth_source,
+            is_admin=current_user.has_role("Administrator"),
+            logout_url=get_logout_url(),
+            requirejs=True,
+            basejs=True,
+            mfa_enabled=is_mfa_enabled(),
+            login_url=login_url,
+            _=gettext,
+            auth_only_internal=auth_only_internal,
+        )
+    )
+
 
     # Set the language cookie after login, so next time the user will have that
     # same option at the login time.
     misc_preference = Preferences.module('misc')
-    user_languages = misc_preference.preference(
-        'user_language'
-    )
-    language = 'en'
-    if user_languages:
+    if user_languages := misc_preference.preference('user_language'):
         language = user_languages.get() or 'en'
-
-    domain = dict()
+    else:
+        language = 'en'
+    domain = {}
     if config.COOKIE_DEFAULT_DOMAIN and\
             config.COOKIE_DEFAULT_DOMAIN != 'localhost':
         domain['domain'] = config.COOKIE_DEFAULT_DOMAIN
@@ -638,7 +639,7 @@ def utils():
     insert_pair_brackets = insert_pair_brackets_perf.get()
 
     # This will be opposite of use_space option
-    editor_indent_with_tabs = False if editor_use_spaces else True
+    editor_indent_with_tabs = not editor_use_spaces
 
     # Try to fetch current libpq version from the driver
     try:
@@ -743,12 +744,14 @@ def get_nodes():
 
 
 def form_master_password_response(existing=True, present=False, errmsg=None):
-    return make_json_response(data={
-        'present': present,
-        'reset': existing,
-        'errmsg': errmsg,
-        'is_error': True if errmsg else False
-    })
+    return make_json_response(
+        data={
+            'present': present,
+            'reset': existing,
+            'errmsg': errmsg,
+            'is_error': bool(errmsg),
+        }
+    )
 
 
 @blueprint.route("/check_corrupted_db_file",
@@ -931,9 +934,7 @@ if hasattr(config, 'SECURITY_CHANGEABLE') and config.SECURITY_CHANGEABLE:
 
         has_error = False
         form_class = _security.change_password_form
-        req_json = request.get_json(silent=True)
-
-        if req_json:
+        if req_json := request.get_json(silent=True):
             form = form_class(MultiDict(req_json))
         else:
             form = form_class()
@@ -974,7 +975,7 @@ if hasattr(config, 'SECURITY_CHANGEABLE') and config.SECURITY_CHANGEABLE:
                 set_crypt_key(form.new_password.data, False)
 
                 from pgadmin.browser.server_groups.servers.utils \
-                    import reencrpyt_server_passwords
+                        import reencrpyt_server_passwords
                 reencrpyt_server_passwords(
                     current_user.id, old_key, form.new_password.data)
 
@@ -1018,9 +1019,7 @@ if hasattr(config, 'SECURITY_RECOVERABLE') and config.SECURITY_RECOVERABLE:
         """View function that handles a forgotten password request."""
         has_error = False
         form_class = _security.forgot_password_form
-        req_json = request.get_json(silent=True)
-
-        if req_json:
+        if req_json := request.get_json(silent=True):
             form = form_class(MultiDict(req_json))
         else:
             form = form_class()

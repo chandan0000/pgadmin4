@@ -83,25 +83,38 @@ class FunctionGetNodesTestCase(BaseTestGenerator):
 
     def get_nodes(self):
         if hasattr(self, 'with_function_id') and self.with_function_id:
-            func_name = "test_function_delete_%s" % str(uuid.uuid4())[1:8]
+            func_name = f"test_function_delete_{str(uuid.uuid4())[1:8]}"
             function_info = funcs_utils.create_function(
                 self.server, self.db_name, self.schema_name, func_name)
 
             func_id = function_info[0]
-            response = self.tester.get(
-                self.url + str(utils.SERVER_GROUP) + '/' +
-                str(self.server_id) + '/' + str(self.db_id) +
-                '/' + str(self.schema_id) + '/' + str(func_id),
-                content_type='html/json'
+            return self.tester.get(
+                self.url
+                + str(utils.SERVER_GROUP)
+                + '/'
+                + str(self.server_id)
+                + '/'
+                + str(self.db_id)
+                + '/'
+                + str(self.schema_id)
+                + '/'
+                + str(func_id),
+                content_type='html/json',
             )
+
         else:
-            response = self.tester.get(
-                self.url + str(utils.SERVER_GROUP) + '/' +
-                str(self.server_id) + '/' + str(self.db_id) +
-                '/' + str(self.schema_id) + '/',
-                content_type='html/json'
+            return self.tester.get(
+                self.url
+                + str(utils.SERVER_GROUP)
+                + '/'
+                + str(self.server_id)
+                + '/'
+                + str(self.db_id)
+                + '/'
+                + str(self.schema_id)
+                + '/',
+                content_type='html/json',
             )
-        return response
 
     def runTest(self):
         """ This function will get function nodes under schema. """

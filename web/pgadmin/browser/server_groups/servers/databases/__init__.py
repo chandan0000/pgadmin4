@@ -278,11 +278,7 @@ class DatabaseView(PGChildNodeView):
             if self.skip_db(row):
                 continue
 
-            if self.manager.db == row['name']:
-                row['canDrop'] = False
-            else:
-                row['canDrop'] = True
-
+            row['canDrop'] = self.manager.db != row['name']
             result_set.append(row)
 
         return ajax_response(
@@ -291,41 +287,38 @@ class DatabaseView(PGChildNodeView):
         )
 
     def retrieve_last_system_oid(self):
-        last_system_oid = 0
-
-        if not self.blueprint.show_system_objects:
-            last_system_oid = self._DATABASE_LAST_SYSTEM_OID
-
-        return last_system_oid
+        return (
+            0
+            if self.blueprint.show_system_objects
+            else self._DATABASE_LAST_SYSTEM_OID
+        )
 
     def get_icon(self, res, connected):
         if not connected and not res['is_template']:
-            icon = "icon-database-not-connected"
-        elif not connected and res['is_template']:
-            icon = 'icon-database-template-not-connected'
-        elif connected and res['is_template']:
-            icon = 'icon-database-template-connected'
+            return "icon-database-not-connected"
+        elif not connected:
+            return 'icon-database-template-not-connected'
+        elif res['is_template']:
+            return 'icon-database-template-connected'
         else:
-            icon = "pg-icon-database"
-
-        return icon
+            return "pg-icon-database"
 
     def skip_db(self, row):
 
         if not self.blueprint.show_system_objects \
-            and row['is_sys_obj'] \
-                and row['name'] not in ('postgres', 'edb') \
-                or not self.blueprint.show_database_template \
                 and row['is_sys_obj'] \
-                and row['name'] not in ('postgres', 'edb'):
+                    and row['name'] not in ('postgres', 'edb') \
+                    or not self.blueprint.show_database_template \
+                    and row['is_sys_obj'] \
+                    and row['name'] not in ('postgres', 'edb'):
             return True
 
-        if not self.blueprint.show_database_template \
-            and row['is_template'] and \
-            not row['is_sys_obj'] and \
-                row['name'] not in ('postgres', 'edb'):
-            return True
-        return False
+        return bool(
+            not self.blueprint.show_database_template
+            and row['is_template']
+            and not row['is_sys_obj']
+            and row['name'] not in ('postgres', 'edb')
+        )
 
     def get_nodes(self, gid, sid, is_schema_diff=False):
         res = []
@@ -333,7 +326,7 @@ class DatabaseView(PGChildNodeView):
 
         # if is_schema_diff then no need to show system templates.
         if is_schema_diff and self.manager.db_info is not None and \
-                self.manager.did in self.manager.db_info:
+                    self.manager.did in self.manager.db_info:
             last_system_oid = self._DATABASE_LAST_SYSTEM_OID
 
         server_node_res = self.manager
@@ -386,9 +379,10 @@ class DatabaseView(PGChildNodeView):
                     canDisconn=can_dis_conn,
                     canDrop=can_drop,
                     isTemplate=row['is_template'],
-                    inode=True if row['datallowconn'] else False
+                    inode=bool(row['datallowconn']),
                 )
             )
+
 
         return res
 
@@ -410,7 +404,6 @@ class DatabaseView(PGChildNodeView):
         :param sid:
         :return:
         """
-        res = []
         SQL = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
             last_system_oid=0,
@@ -421,9 +414,7 @@ class DatabaseView(PGChildNodeView):
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            res.append(row['name'])
-
+        res = [row['name'] for row in rset['rows']]
         return make_json_response(
             data=res,
             status=200
@@ -515,9 +506,7 @@ class DatabaseView(PGChildNodeView):
         )
 
         status, res1 = self.conn.execute_dict(SQL)
-        database = Database.query.filter_by(id=did, server=sid).first()
-
-        if database:
+        if database := Database.query.filter_by(id=did, server=sid).first():
             result['schema_res'] = database.schema_res.split(
                 ',') if database.schema_res else []
 
@@ -589,26 +578,27 @@ class DatabaseView(PGChildNodeView):
         conn = manager.connection(did=did, auto_reconnect=True)
         status = manager.release(did=did)
 
-        if not status:
-            return unauthorized(_("Database could not be disconnected."))
-        else:
-            return make_json_response(
+        return (
+            make_json_response(
                 success=1,
                 info=_("Database disconnected."),
                 data={
                     'icon': 'icon-database-not-connected',
                     'connected': False,
-                    'info_prefix': '{0}/{1}'.
-                    format(Server.query.filter_by(id=sid)[0].name, conn.db)
-                }
+                    'info_prefix': '{0}/{1}'.format(
+                        Server.query.filter_by(id=sid)[0].name, conn.db
+                    ),
+                },
             )
+            if status
+            else unauthorized(_("Database could not be disconnected."))
+        )
 
     @check_precondition(action="get_encodings")
     def get_encodings(self, gid, sid, did=None):
         """
         This function to return list of avialable encodings
         """
-        res = []
         SQL = render_template(
             "/".join([self.template_path, 'get_encodings.sql'])
         )
@@ -616,10 +606,10 @@ class DatabaseView(PGChildNodeView):
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            res.append(
-                {'label': row['encoding'], 'value': row['encoding']}
-            )
+        res = [
+            {'label': row['encoding'], 'value': row['encoding']}
+            for row in rset['rows']
+        ]
 
         return make_json_response(
             data=res,
@@ -633,10 +623,7 @@ class DatabaseView(PGChildNodeView):
         """
         res = [{'label': '', 'value': ''}]
         default_list = ['C', 'POSIX']
-        for val in default_list:
-            res.append(
-                {'label': val, 'value': val}
-            )
+        res.extend({'label': val, 'value': val} for val in default_list)
         SQL = render_template(
             "/".join([self.template_path, 'get_ctypes.sql'])
         )
@@ -644,9 +631,11 @@ class DatabaseView(PGChildNodeView):
         if not status:
             return internal_server_error(errormsg=rset)
 
-        for row in rset['rows']:
-            if row['cname'] not in default_list:
-                res.append({'label': row['cname'], 'value': row['cname']})
+        res.extend(
+            {'label': row['cname'], 'value': row['cname']}
+            for row in rset['rows']
+            if row['cname'] not in default_list
+        )
 
         return make_json_response(
             data=res,
@@ -660,9 +649,8 @@ class DatabaseView(PGChildNodeView):
             'name'
         ]
 
-        data = request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        data = request.form or json.loads(request.data, encoding='utf-8')
+
 
         for arg in required_args:
             if arg not in data:
@@ -822,9 +810,7 @@ class DatabaseView(PGChildNodeView):
         return False, '', can_drop
 
     def _get_data_from_request(self):
-        return request.form if request.form else json.loads(
-            request.data, encoding='utf-8'
-        )
+        return request.form or json.loads(request.data, encoding='utf-8')
 
     @check_precondition(action='update')
     def update(self, gid, sid, did):
@@ -917,14 +903,15 @@ class DatabaseView(PGChildNodeView):
                 sid,
                 res['name'],
                 icon=icon,
-                connected=self.conn.connected() if
-                self._db['datallowconn'] else False,
+                connected=self.conn.connected()
+                if self._db['datallowconn']
+                else False,
                 tablespace=res['spcname'],
                 allowConn=res['datallowconn'],
                 canCreate=res['cancreate'],
                 canDisconn=can_dis_conn,
                 canDrop=can_drop,
-                inode=True if res['datallowconn'] else False,
+                inode=bool(res['datallowconn']),
                 isTemplate=res['is_template'],
             )
         )
@@ -959,9 +946,8 @@ class DatabaseView(PGChildNodeView):
         """
 
         if did is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
+            data = request.form or json.loads(request.data, encoding='utf-8')
+
         else:
             data = {'ids': [did]}
 
@@ -994,24 +980,23 @@ class DatabaseView(PGChildNodeView):
                         'The specified database could not be found.\n'
                     )
                 )
-            else:
-                is_error, errmsg = self._release_conn_before_delete(sid, did)
-                if is_error:
-                    return errmsg
+            is_error, errmsg = self._release_conn_before_delete(sid, did)
+            if is_error:
+                return errmsg
 
-                sql = render_template(
-                    "/".join([self.template_path, self._DELETE_SQL]),
-                    datname=res, conn=self.conn
-                )
+            sql = render_template(
+                "/".join([self.template_path, self._DELETE_SQL]),
+                datname=res, conn=self.conn
+            )
 
-                status, msg = default_conn.execute_scalar(sql)
-                if not status:
-                    # reconnect if database drop failed.
-                    conn = self.manager.connection(did=did,
-                                                   auto_reconnect=True)
-                    status, errmsg = conn.connect()
+            status, msg = default_conn.execute_scalar(sql)
+            if not status:
+                # reconnect if database drop failed.
+                conn = self.manager.connection(did=did,
+                                               auto_reconnect=True)
+                status, errmsg = conn.connect()
 
-                    return internal_server_error(errormsg=msg)
+                return internal_server_error(errormsg=msg)
 
         return make_json_response(success=1)
 
@@ -1025,10 +1010,7 @@ class DatabaseView(PGChildNodeView):
             try:
                 # comments should be taken as is because if user enters a
                 # json comment it is parsed by loads which should not happen
-                if k in ('comments',):
-                    data[k] = v
-                else:
-                    data[k] = json.loads(v, encoding='utf-8')
+                data[k] = v if k in ('comments',) else json.loads(v, encoding='utf-8')
             except ValueError:
                 data[k] = v
         status, res = self.get_sql(gid, sid, data, did)
@@ -1068,9 +1050,10 @@ class DatabaseView(PGChildNodeView):
             if 'name' not in data:
                 data['name'] = data['old_name']
 
-            SQL = ''
-            for action in ["rename_database", "tablespace"]:
-                SQL += self.get_offline_sql(gid, sid, data, did, action)
+            SQL = ''.join(
+                self.get_offline_sql(gid, sid, data, did, action)
+                for action in ["rename_database", "tablespace"]
+            )
 
             SQL += self.get_online_sql(gid, sid, data, did)
         else:
@@ -1170,12 +1153,10 @@ class DatabaseView(PGChildNodeView):
         )
         status, rset = self.conn.execute_dict(SQL)
 
-        if not status:
-            return internal_server_error(errormsg=rset)
-
-        return make_json_response(
-            data=rset['rows'],
-            status=200
+        return (
+            make_json_response(data=rset['rows'], status=200)
+            if status
+            else internal_server_error(errormsg=rset)
         )
 
     @check_precondition()
@@ -1206,12 +1187,10 @@ class DatabaseView(PGChildNodeView):
             params
         )
 
-        if not status:
-            return internal_server_error(errormsg=res)
-
-        return make_json_response(
-            data=res,
-            status=200
+        return (
+            make_json_response(data=res, status=200)
+            if status
+            else internal_server_error(errormsg=res)
         )
 
     @check_precondition(action="sql")
